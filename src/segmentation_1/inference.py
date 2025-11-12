@@ -8,7 +8,7 @@ from tqdm import tqdm
 import numpy as np
 
 from plots import plot_effect
-from cleanup import cleanup
+from post_seg_cleanup import cleanup
 
 
 def main():
@@ -24,7 +24,7 @@ def main():
     # metrics, predictions, ground_truths = evaluate_model(
     #     model, dataloader, DEVICE)
 
-    magic = 69
+    magic = 101
     i, msk = dataset[magic]
     img = ten2np(i)
     msk = ten2np(msk)
@@ -35,7 +35,7 @@ def main():
 
     # plt.imshow(post, cmap="jet")
     # plt.show()
-    plot_effect(img, msk, effect=post, effect_title="Segment pipeline")
+    plot_effect(msk, out, effect=post, effect_title="Segment pipeline")
 
 
 if __name__ == "__main__":

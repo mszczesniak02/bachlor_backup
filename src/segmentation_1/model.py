@@ -18,7 +18,7 @@ def model_init():
     return model
 
 
-def model_load(filepath=MODEL_PATH, device=DEVICE, print_info=False):
+def model_load(filepath=MODEL_INFERENCE_PATH, device=DEVICE, print_info=False):
     model = model_init()
 
     if os.path.isfile(filepath):
@@ -35,10 +35,12 @@ def model_load(filepath=MODEL_PATH, device=DEVICE, print_info=False):
         return model
 
 
-def model_save(model, filepath=MODEL_DIR, filename="model.pth", print_info=False):
-    checkpoint = {'epoch': EPOCHS,
-                  'model_state_dict': model.state_dict(),
-                  }
+def model_save(model, checkpoint=None, filepath=MODEL_INFERENCE_DIR, filename="model.pth", print_info=False):
+    if checkpoint == None:
+
+        checkpoint = {'epoch': EPOCHS,
+                      'model_state_dict': model.state_dict(),
+                      }
     torch.save(checkpoint, filepath + filename)
     if print_info:
         print(f"Model saved to {filepath} as {filename}.")

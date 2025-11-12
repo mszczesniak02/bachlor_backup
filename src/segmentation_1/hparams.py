@@ -19,8 +19,12 @@ else:
     WORKERS = 2
 
 DEVICE = "cpu"
-MODEL_PATH = "../../models/segmentation_1/model_dice.pth"
-MODEL_DIR = "../../models/segmentation_1/"
+
+MODEL_INFERENCE_PATH = "../../models/segmentation_1/model_dice.pth"
+MODEL_INFERENCE_DIR = "../../models/segmentation_1/"
+MODEL_TRAIN_DIR = "../../models/segmentation_1/"
+MODEL_TRAIN_LOG_DIR = "../../models_log/segmentation_1/"
+
 
 # HYPER PARAMS FOR SEGMENTATION MODEL NR 1
 BATCH_SIZE = 16

@@ -64,9 +64,9 @@ class DeepCrackDataset(Dataset):
         return tensor_image, tensor_mask
 
 
-def dataset_get(img_path=IMG_TRAIN_PATH, mask_path=MASK_TRAIN_PATH, transform_train=None):
+def dataset_get(img_path=IMG_TRAIN_PATH, mask_path=MASK_TRAIN_PATH, transform=None):
 
-    dataset = DeepCrackDataset(img_path, mask_path, transform=transform_train)
+    dataset = DeepCrackDataset(img_path, mask_path, transform=transform)
     return dataset
 
 
