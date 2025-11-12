@@ -1,0 +1,7 @@
+assets/
+f_loss_comparison
+all_zipers.zip
+best_model*
+src/runs/*
+src/runs
+
