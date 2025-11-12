@@ -4,4 +4,4 @@ all_zipers.zip
 best_model*
 src/runs/*
 src/runs
-
+models/
