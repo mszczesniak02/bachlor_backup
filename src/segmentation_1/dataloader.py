@@ -10,8 +10,11 @@ import albumentations as A
 
 import os
 
-
 from hparams import *
+
+from PIL import Image, ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+
 
 transform_val = A.Compose(
     [A.Resize(height=512, width=512)]
@@ -42,11 +45,21 @@ class DeepCrackDataset(Dataset):
         return len(self.images)
 
     def __getitem__(self, index):
-        np_image = np.array(Image.open(self.images[index]))
-        np_mask = np.array(Image.open(self.masks[index]))
+        with Image.open(self.images[index]) as img:
+            img = img.convert('RGB')
+            img = img.resize((512, 512), Image.BILINEAR)  # WYMUSZENIE 512x512
+            np_image = np.array(img)
 
-        if len(np_mask.shape) == 3:
-            np_mask = np_mask[:, :, 0]
+        with Image.open(self.masks[index]) as mask:
+            mask = mask.convert('L')
+            mask = mask.resize((512, 512), Image.NEAREST)  # WYMUSZENIE 512x512
+            np_mask = np.array(mask)
+
+        # np_image = np.array(Image.open(self.images[index]))
+        # np_mask = np.array(Image.open(self.masks[index]))
+
+        # if len(np_mask.shape) == 3:
+        #     np_mask = np_mask[:, :, 0]
 
         np_mask = (np_mask > 127).astype(np.uint8)
 

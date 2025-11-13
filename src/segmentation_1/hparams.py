@@ -3,10 +3,10 @@ ON_COLAB = True
 
 if ON_COLAB != True:
     # if using 16 GB gpu :>
-    MASK_TRAIN_PATH = "../../assets/datasets/DeepCrack/train_lab"
-    IMG_TRAIN_PATH = "../../assets/datasets/DeepCrack/train_img"
-    MASK_TEST_PATH = "../../assets/datasets/DeepCrack/test_lab"
-    IMG_TEST_PATH = "../../assets/datasets/DeepCrack/test_img"
+    MASK_TRAIN_PATH = "../../../datasets/multi/train_lab"
+    IMG_TRAIN_PATH = "../../../datasets/multi/train_img"
+    MASK_TEST_PATH = "../../../datasets/multi/test_lab"
+    IMG_TEST_PATH = "../../../datasets/multi/test_img"
     DEVICE = "cuda"
     WORKERS = 4
 else:
@@ -30,7 +30,7 @@ MODEL_TRAIN_LOG_DIR = "../../models_log/segmentation_1/"
 BATCH_SIZE = 32
 LEARNING_RATE = .482e-3
 WEIGHT_DECAY = 1e-5
-EPOCHS = 10
+EPOCHS = 5
 
 # HELPER PARAMS FOR EASIER DETECTION
 PIN_MEMORY = True
