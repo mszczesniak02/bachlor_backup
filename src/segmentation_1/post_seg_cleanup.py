@@ -18,13 +18,7 @@ from plots import plot_effect, ten2np
 def cleanup(output, hole_area=100, min_object=50, connectivity=10):
     np_out = output
 
-    for i, row in enumerate(np_out):
-        for j, col in enumerate(row):
-            if col < 150:
-                np_out[i][j] = 0
-            else:
-                np_out[i][j] = 1
-
+    np_out = (np_out >= 150).astype(bool)
     mask_closed = closing(np_out, footprint=np.ones((3, 3)))
 
     mask_removed_holes = remove_small_holes(
@@ -32,7 +26,7 @@ def cleanup(output, hole_area=100, min_object=50, connectivity=10):
     mask_removed_objects = remove_small_objects(
         mask_removed_holes, min_size=min_object, connectivity=connectivity)
 
-    return mask_removed_objects
+    return mask_removed_objects.astype(np.uint8) * 255
 
 
 def main():

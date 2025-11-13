@@ -18,13 +18,14 @@ def main():
 
     # get the test dataset
 
-    dataset = dataset_get(img_path=IMG_TEST_PATH,
-                          mask_path=MASK_TEST_PATH, transform_train=transform_val)
+    dataset = dataset_get(img_path="../../../datasets/multi/test_img/",
+                          mask_path="../../../datasets/multi/test_lab/", transform=transform_val)
     dataloader = dataloader_get(dataset, is_training=False)
     # metrics, predictions, ground_truths = evaluate_model(
     #     model, dataloader, DEVICE)
 
-    magic = 101
+    magic = 960
+
     i, msk = dataset[magic]
     img = ten2np(i)
     msk = ten2np(msk)

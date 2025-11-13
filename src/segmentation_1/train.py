@@ -8,8 +8,9 @@ from cuda_utils import *
 import torch
 
 from tqdm import tqdm
-import datetime
 from torch.utils.tensorboard import SummaryWriter
+
+from datetime import datetime
 
 
 def calculate_metrics(predictions, targets, threshold=0.5):
