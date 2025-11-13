@@ -1,5 +1,5 @@
 # training through Google Colab -> train using notebook rather then .py script
-ON_COLAB = False
+ON_COLAB = True
 
 if ON_COLAB != True:
     # if using 16 GB gpu :>
@@ -11,14 +11,14 @@ if ON_COLAB != True:
     WORKERS = 4
 else:
     # using local 2GB laptop :|
-    MASK_TRAIN_PATH = "/content/DeepCrack/train_lab"
-    IMG_TRAIN_PATH = "/content/DeepCrack/train_img"
-    MASK_TEST_PATH = "/content/DeepCrack/test_lab"
-    IMG_TEST_PATH = "/content/DeepCrack/test_img"
+    MASK_TRAIN_PATH = "/content/datasets/multi/train_lab"
+    IMG_TRAIN_PATH = "/content/datasets/multi/train_img"
+    MASK_TEST_PATH = "/content/datasets/multi/test_lab"
+    IMG_TEST_PATH = "/content/datasets/multi/test_img"
     DEVICE = "cuda"
     WORKERS = 2
 
-DEVICE = "cpu"
+# DEVICE = "cpu"
 
 MODEL_INFERENCE_PATH = "../../models/segmentation_1/model_dice.pth"
 MODEL_INFERENCE_DIR = "../../models/segmentation_1/"
@@ -27,10 +27,10 @@ MODEL_TRAIN_LOG_DIR = "../../models_log/segmentation_1/"
 
 
 # HYPER PARAMS FOR SEGMENTATION MODEL NR 1
-BATCH_SIZE = 3
-LEARNING_RATE = 1e-4
+BATCH_SIZE = 32
+LEARNING_RATE = .482e-3
 WEIGHT_DECAY = 1e-5
-EPOCHS = 2
+EPOCHS = 10
 
 # HELPER PARAMS FOR EASIER DETECTION
 PIN_MEMORY = True
