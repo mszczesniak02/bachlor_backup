@@ -4,6 +4,7 @@ from torch.utils.data import random_split
 from torch.utils.data import DataLoader
 
 from PIL import Image
+
 import numpy as np
 
 import albumentations as A
@@ -83,8 +84,8 @@ def dataset_get(img_path=IMG_TRAIN_PATH, mask_path=MASK_TRAIN_PATH, transform=No
     return dataset
 
 
-def dataloader_get(dataset, is_training=True):
-    dataloader = DataLoader(dataset, batch_size=BATCH_SIZE,
+def dataloader_get(dataset, is_training=True, bsize=BATCH_SIZE):
+    dataloader = DataLoader(dataset, batch_size=bsize,
                             shuffle=is_training, num_workers=WORKERS, pin_memory=PIN_MEMORY)
     return dataloader
 
