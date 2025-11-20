@@ -6,3 +6,4 @@ src/runs/*
 src/runs
 models/
 models_log/
+__pycache__
