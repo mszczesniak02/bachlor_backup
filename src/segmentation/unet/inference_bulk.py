@@ -100,8 +100,6 @@ def main():
     times, measurements = evaluate_amount(model, dataset)
     percentages = [i["%"] for i in measurements.values()]
 
-    # print(f"t_avg={(np.mean(times) * 1000):.3f} ; t_median={(np.median(times)*1000):.3f} ; t_min={(np.min(times)*1000):.3f}; t_max={(np.max(times)*1000):3f}")
-
     print(
         f"model prediction times\navg={(np.mean(times) * 1000):.3f} ms\tmedian={(np.median(times)*1000):.3f} ms\tmin={(np.min(times)*1000):.3f} ms\tmax={(np.max(times)*1000):3f} ms")
     print("\n\n")

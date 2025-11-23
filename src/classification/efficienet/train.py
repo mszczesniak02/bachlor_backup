@@ -1,18 +1,37 @@
-from hparams import *
-from model import *
-from dataloader import *
-
-import torch
-import torch.nn as nn
+# autopep8: off
+import sys
+import os
+from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
-from datetime import datetime
-import os
-
-from sklearn.metrics import confusion_matrix, precision_recall_fscore_support
+import torch
+import torch.nn as nn
+import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-import numpy as np
+from sklearn.metrics import confusion_matrix, precision_recall_fscore_support
+
+# -------------------------importing common and utils -----------------------------
+
+original_sys_path = sys.path.copy()
+
+# moving to "classification/"
+sys.path.append(os.path.abspath(
+    os.path.join(os.path.dirname(__file__), '../../')))
+
+# importing commons
+from classification.common.dataloader import *
+from classification.common.model import *
+from classification.common.hparams import *
+
+# importing utils
+from utils.utils import *
+
+# go back to the origin path
+sys.path = original_sys_path
+# autopep8: on
+
+# --------------------------------------------------------------------------------
 
 
 def plot_confusion_matrix(all_labels, all_preds, class_names, writer, epoch, tag='confusion_matrix'):
@@ -96,7 +115,7 @@ def train_epoch(model, loader, criterion, optimizer, device, writer, epoch, step
     return epoch_loss, metrics, step, all_labels, all_preds
 
 
-def validate_epoch(model, loader, criterion, device):
+def validate(model, loader, criterion, device):
     model.eval()
     running_loss = 0.0
     all_preds = []
@@ -125,40 +144,30 @@ def validate_epoch(model, loader, criterion, device):
     return epoch_loss, metrics, all_labels, all_preds
 
 
-def main():
+def train_model(writer, epochs=ENET_EPOCHS, batch_size=ENET_BATCH_SIZE, lr=ENET_LEARNING_RATE, device=DEVICE):
     class_names = ["0_brak", "1_wlosowe", "2_male", "3_srednie", "4_duze"]
-    device = DEVICE
 
-    train_loader = dataloader_get(
-        TRAIN_DIR, batch_size=BATCH_SIZE, image_size=IMAGE_SIZE, is_training=True, num_workers=WORKERS
-    )
+    train_loader, val_loader = dataloader_init(batch_size=batch_size)
+    print("Dataloader initialized.")
 
-    val_loader = dataloader_get(
-        TEST_DIR, batch_size=BATCH_SIZE, image_size=IMAGE_SIZE, is_training=False, num_workers=WORKERS
-    )
-
-    model = model_init()
+    model = model_init(model_name="efficienet")
     model = model.to(device)
 
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.AdamW(
-        model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
+        model.parameters(), lr=lr, weight_decay=ENET_WEIGHT_DECAY)
 
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='max', factor=0.5, patience=SCHEDULER_PATIENCE)
-
-    timestamp = datetime.now().strftime('%d_%H%M')
-    log_dir = f"{TRAIN_LOG_DIR}/model_batch_{BATCH_SIZE}_lr{LEARNING_RATE:.0e}_{timestamp}"
-    writer = SummaryWriter(log_dir)
+        optimizer, mode='max', factor=0.5, patience=ENET_SCHEDULER_PATIENCE)
 
     hparams = {
-        'learning_rate': LEARNING_RATE,
-        'batch_size': BATCH_SIZE,
-        'image_size': IMAGE_SIZE,
-        'weight_decay': WEIGHT_DECAY,
-        'epochs': EPOCHS,
+        'learning_rate': lr,
+        'batch_size': batch_size,
+        'image_size': ENET_IMAGE_SIZE,
+        'weight_decay': ENET_WEIGHT_DECAY,
+        'epochs': epochs,
         'patience': PATIENCE,
-        'scheduler_patience': SCHEDULER_PATIENCE,
+        'scheduler_patience': ENET_SCHEDULER_PATIENCE,
         'device': str(device),
         'model': 'EfficientNet-B0',
         'optimizer': 'AdamW',
@@ -175,13 +184,13 @@ def main():
                        for p in model.parameters() if p.requires_grad)
     print(f"Total parameters: {total_params:,}")
 
-    epoch_loop = tqdm(range(EPOCHS), desc='Epochs', leave=False)
+    epoch_loop = tqdm(range(epochs), desc='Epochs', leave=False)
     for epoch in epoch_loop:
         train_loss, train_metrics, step, train_labels, train_preds = train_epoch(
             model, train_loader, criterion, optimizer, device, writer, epoch, step
         )
 
-        val_loss, val_metrics, val_labels, val_preds = validate_epoch(
+        val_loss, val_metrics, val_labels, val_preds = validate(
             model, val_loader, criterion, device
         )
 
@@ -192,31 +201,20 @@ def main():
         plot_confusion_matrix(val_labels, val_preds, class_names,
                               writer, epoch, 'val/confusion_matrix')
 
-        writer.add_scalars('Loss', {
-            'train': train_loss,
-            'val': val_loss
-        }, epoch)
+        # Log metrics
+        metrics_to_log = ['accuracy', 'f1_score', 'precision', 'recall']
 
-        writer.add_scalars('Accuracy', {
-            'train': train_metrics['accuracy'],
-            'val': val_metrics['accuracy']
-        }, epoch)
+        # Log Loss separately as it's not in the metrics dict in the same way (train_loss is a float, metrics is a dict)
+        writer.add_scalar('Loss/train', train_loss, epoch)
+        writer.add_scalar('Loss/val', val_loss, epoch)
 
-        writer.add_scalars('F1-Score', {
-            'train': train_metrics['f1_score'],
-            'val': val_metrics['f1_score']
-        }, epoch)
+        for metric in metrics_to_log:
+            metric_name = metric.replace('_', '-').title()
+            writer.add_scalar(f'{metric_name}/train',
+                              train_metrics[metric], epoch)
+            writer.add_scalar(f'{metric_name}/val', val_metrics[metric], epoch)
 
-        writer.add_scalars('Precision', {
-            'train': train_metrics['precision'],
-            'val': val_metrics['precision']
-        }, epoch)
-
-        writer.add_scalars('Recall', {
-            'train': train_metrics['recall'],
-            'val': val_metrics['recall']
-        }, epoch)
-
+        # Per-class metrics
         for class_idx, class_name in enumerate(class_names):
             writer.add_scalar(
                 f'Per_Class/f1_{class_name}', val_metrics['f1_per_class'][class_idx], epoch)
@@ -231,8 +229,9 @@ def main():
 
         if val_metrics['f1_score'] > best_f1:
             best_f1 = val_metrics['f1_score']
-            best_model_path = f"../../models/classification/model_f1_{best_f1:.4f}_epoch{epoch}.pth"
-            os.makedirs(os.path.dirname(best_model_path), exist_ok=True)
+            best_model_path = f"{ENET_MODEL_TRAIN_DIR}/model_f1_{best_f1:.4f}_epoch{epoch}.pth"
+            os.makedirs(os.path.dirname(best_model_path) if os.path.dirname(
+                best_model_path) else '.', exist_ok=True)
             model_save(model, best_model_path, epoch, optimizer, val_loss)
             epochs_without_improvement = 0
             epoch_loop.set_description(f'Epochs (Best F1: {best_f1:.4f})')
@@ -248,7 +247,8 @@ def main():
     print("\n" + "="*70)
     print("Training completed!")
     print(f"Best F1 Score: {best_f1:.4f}")
-    print(f"Best model saved: {best_model_path}")
+    if best_model_path:
+        print(f"Best model saved: {best_model_path}")
     print("="*70)
 
     metrics_dict = {
@@ -260,6 +260,17 @@ def main():
 
     writer.add_hparams(hparams, metrics_dict)
     writer.close()
+    return model
+
+
+def main():
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M')
+    log_dir = f"{ENET_MODEL_TRAIN_LOG_DIR}/{timestamp}/model_batch_{ENET_BATCH_SIZE}_lr{ENET_LEARNING_RATE:.0e}"
+    writer = SummaryWriter(log_dir)
+
+    seed_everything(SEED)  # Assuming seed is constant or passed
+
+    train_model(writer)
 
     print("TensorBoard logs saved!")
     print(f"Run: tensorboard --logdir={log_dir}")
@@ -267,3 +278,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    utils_cuda_clear()

@@ -1,6 +1,3 @@
-from hparams import *
-from model import *
-from dataloader import *
 
 import torch
 import torch.nn as nn
@@ -13,6 +10,40 @@ import numpy as np
 from sklearn.metrics import confusion_matrix, precision_recall_fscore_support
 import seaborn as sns
 import matplotlib.pyplot as plt
+# autopep8: off
+import sys
+import os
+from datetime import datetime
+from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
+import torch
+import torch.nn as nn
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix, precision_recall_fscore_support
+
+# -------------------------importing common and utils -----------------------------
+
+original_sys_path = sys.path.copy()
+
+# moving to "classification/"
+sys.path.append(os.path.abspath(
+    os.path.join(os.path.dirname(__file__), '../../')))
+
+# importing commons
+from classification.common.dataloader import *
+from classification.common.model import *
+from classification.common.hparams import *
+
+# importing utils
+from utils.utils import *
+
+# go back to the origin path
+sys.path = original_sys_path
+# autopep8: on
+
+# --------------------------------------------------------------------------------
 
 
 def plot_confusion_matrix(all_labels, all_preds, class_names, writer, epoch, tag='confusion_matrix'):
@@ -119,12 +150,9 @@ def validate_epoch(model, loader, criterion, device):
     return epoch_loss, metrics, all_labels, all_preds
 
 
-def main():
+def run_tuning(batch_sizes, learning_rates):
     class_names = ["0_brak", "1_wlosowe", "2_male", "3_srednie", "4_duze"]
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-    batch_sizes = [16, 8, 4]
-    learning_rates = [1.3e-3, 2.5e-4, 4.5e-5]
 
     EPOCHS_TUNING = 4
     IMAGE_SIZE_TUNING = 224
@@ -152,7 +180,7 @@ def main():
                 is_training=False, num_workers=WORKERS
             )
 
-            model = model_init()
+            model = model_init(model_name="efficienet")
             model = model.to(device)
 
             criterion = nn.CrossEntropyLoss()
@@ -248,4 +276,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    batch_sizes = [16, 8, 4]
+    learning_rates = [1.3e-3, 2.5e-4, 4.5e-5]
+    run_tuning(batch_sizes, learning_rates)

@@ -29,8 +29,7 @@ sys.path = original_sys_path
 
 # --------------------------------------------------------------------------------
 
-# Reuse functions from train.py if possible, but to avoid circular imports or path issues
-# I will redefine them here identical to train.py as requested by "change fine_tuning just like I have normal train"
+
 
 def calculate_metrics(predictions, targets, threshold=0.5):
     # predictions: [B, 1, H, W] or [B, H, W]

@@ -248,7 +248,8 @@ def train_model(writer, epochs: int = UNET_EPOCHS, batch_size: int = UNET_BATCH_
                 'train_metrics': train_metrics,
             }
             model_save(model, checkpoint,
-                       filename=f"model_unet_{best_val_iou}.pth")
+                       filename=f"model_unet_{best_val_iou}.pth",
+                       filepath=UNET_MODEL_TRAIN_DIR)
         else:
             loop.set_description(
                 f'Epochs (Best IOU: {best_val_iou:.2f}%, No improvement: {patience_counter}/{EARLY_STOPPING_PATIENCE})')
@@ -267,8 +268,8 @@ def train_model(writer, epochs: int = UNET_EPOCHS, batch_size: int = UNET_BATCH_
 
 def main() -> int:
 
-    writer = SummaryWriter(MODEL_TRAIN_LOG_DIR +
-                           str(datetime.now().strftime('H%M')))
+    writer = SummaryWriter(UNET_MODEL_TRAIN_LOG_DIR +
+                           str(datetime.now().strftime('%Y.%m.%d.%H_%M')))
 
     seed_everything(SEED)
     print(f"Seeding with {SEED}")
