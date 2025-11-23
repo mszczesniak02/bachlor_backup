@@ -55,6 +55,7 @@ def plot_effect(image, mask, effect=[], effect_title="Transform"):
 def np2ten(img: np.array) -> torch.tensor:
     """
     Numpy array to torch tensor
+    Used for inference and cleanup
     """
     if len(img.shape) == 2:
         # Jeśli grayscale, dodaj wymiar kanału
@@ -72,6 +73,7 @@ def np2ten(img: np.array) -> torch.tensor:
 def ten2np(img: torch.Tensor) -> np.array:
     """
     Torch tensor to numpy array
+    Used for inference and cleanup
 
     """
     # Usuń batch dimension jeśli istnieje

@@ -1,14 +1,32 @@
-from hparams import *
-from model import *
-from dataloader import *
-from plots import *
-from post_seg_cleanup import cleanup
+# autopep8: off
 
-
-from tqdm import tqdm
-import time
+import sys
 import os
+original_sys_path = sys.path.copy()
 
+# moving to "segmentation/"
+sys.path.append(os.path.abspath(
+    os.path.join(os.path.dirname(__file__), '../../')))
+
+# importing commons
+from segmentation.common.dataloader import *
+from segmentation.common.model import *
+from segmentation.common.hparams import *
+
+# importing utils
+from utils.utils import *
+
+# go back to the origin path
+sys.path = original_sys_path
+
+# normal imports
+import matplotlib.pyplot as plt
+from tqdm import tqdm
+import numpy as np
+import time
+# autopep8: off
+
+#--------------------------------------------------------------------------
 
 def time_it(func):
     def foo(*args, **kw):
@@ -19,8 +37,8 @@ def time_it(func):
     return foo
 
 
-def evaluate_init():
-    model = model_load(device="cpu")
+def evaluate_init(model_name:str="unet"):
+    model = model_load(model_name=model_name,device="cpu")
     model.eval()
     model.to("cpu")
 
@@ -52,7 +70,7 @@ def evaluate_amount(model, dataset, amount=100):
         t, out = predict_single(model, imgs[jdx].unsqueeze(0))
         times.append(t)
 
-        out = cleanup(ten2np(out))
+        # out = cleanup(ten2np(out))
         msk = ten2np(msks[jdx])
         out = out.flatten()
         msk = msk.flatten()

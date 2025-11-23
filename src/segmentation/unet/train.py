@@ -1,19 +1,29 @@
-# my own stuff
+# autopep8: off
+import sys
+import os
 from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import torch
+# -------------------------importing common and utils -----------------------------
 
+original_sys_path = sys.path.copy()
 
-from hparams import *
-from model import *
-from loss_function import *
-from dataloader import *
-import sys
-import os
-import torch
+# moving to "segmentation/"
+sys.path.append(os.path.abspath(
+    os.path.join(os.path.dirname(__file__), '../../')))
+# importing commons
+from segmentation.common.dataloader import *
+from segmentation.common.loss_function import *
+from segmentation.common.model import *
+from segmentation.common.hparams import *
+# importing utils
+from utils.utils import *
+#autopep8: on
+# go back to the origin path
+sys.path = original_sys_path
 
-from utils import *
+# --------------------------------------------------------------------------------
 
 
 def calculate_metrics(predictions, targets, threshold=0.5):
@@ -154,24 +164,25 @@ def validate(model, val_loader, criterion, device):
         return avg_metrics
 
 
-def train_model(writer, epochs: int = EPOCHS, batch_size: int = BATCH_SIZE, lr: float = LEARNING_RATE, device=DEVICE):
+def train_model(writer, epochs: int = UNET_EPOCHS, batch_size: int = UNET_BATCH_SIZE, lr: float = UNET_LEARNING_RATE, device=DEVICE):
     """
     Main training loop
     """
 
-    train_dl, valid_dl = dataloader_init(batch_size=BATCH_SIZE)
+    train_dl, valid_dl = dataloader_init(batch_size=batch_size)
     print("Dataloader initialized.")
 
     device = torch.device(DEVICE)
 
-    model = model_init().to(device)
+    model = model_init(model_name="unet").to(device)
+
     criterion = DiceLoss()
     print("Criterion initialized: DiceLoss")
 
     optimizer = torch.optim.Adam(
         model.parameters(),
-        lr=LEARNING_RATE,
-        weight_decay=WEIGHT_DECAY,
+        lr=lr,
+        weight_decay=UNET_WEIGHT_DECAY,
     )
     print(f"Optimizer initialized: Adam")
 
@@ -190,16 +201,16 @@ def train_model(writer, epochs: int = EPOCHS, batch_size: int = BATCH_SIZE, lr: 
     patience_counter = 0
 
     writer.add_text("Hparams", f"""
-    -           Learning Rate: {LEARNING_RATE}
-    -              Batch Size: {BATCH_SIZE}
-    -            Weight Decay: {WEIGHT_DECAY}
-    -                  Epochs: {EPOCHS}
+    -           Learning Rate: {lr}
+    -              Batch Size: {batch_size}
+    -            Weight Decay: {UNET_WEIGHT_DECAY}
+    -                  Epochs: {epochs}
     -      Scheduler Patience: {SCHEDULER_PATIENCE}
     - Early Stopping Patience: {EARLY_STOPPING_PATIENCE}
     -                  Device: {DEVICE}
     """)
 
-    loop = tqdm(range(EPOCHS), desc="Epochs", leave=False)
+    loop = tqdm(range(epochs), desc="Epochs", leave=False)
     for epoch in loop:
 
         train_metrics = train_epoch(
@@ -209,41 +220,15 @@ def train_model(writer, epochs: int = EPOCHS, batch_size: int = BATCH_SIZE, lr: 
         current_lr = optimizer.param_groups[0]['lr']
         scheduler.step(val_metrics['iou'])
 
-        # Loss
-        writer.add_scalars('Loss', {
-            'train': train_metrics['loss'],
-            'val': val_metrics['loss']
-        }, epoch)
-
-        # IoU
-        writer.add_scalars('IoU', {
-            'train': train_metrics['iou'],
-            'val': val_metrics['iou']
-        }, epoch)
-
-        # Dice
-        writer.add_scalars('Dice', {
-            'train': train_metrics['dice'],
-            'val': val_metrics['dice']
-        }, epoch)
-
-        # Precision
-        writer.add_scalars('Precision', {
-            'train': train_metrics['precision'],
-            'val': val_metrics['precision']
-        }, epoch)
-
-        # Recall
-        writer.add_scalars('Recall', {
-            'train': train_metrics['recall'],
-            'val': val_metrics['recall']
-        }, epoch)
-
-        # F1-Score
-        writer.add_scalars('F1-Score', {
-            'train': train_metrics['f1_score'],
-            'val': val_metrics['f1_score']
-        }, epoch)
+        # Log metrics
+        metrics_to_log = ['loss', 'iou', 'dice',
+                          'precision', 'recall', 'f1_score']
+        for metric in metrics_to_log:
+            metric_name = metric.replace(
+                '_', '-').title() if metric != 'iou' else 'IoU'
+            writer.add_scalar(f'{metric_name}/train',
+                              train_metrics[metric], epoch)
+            writer.add_scalar(f'{metric_name}/val', val_metrics[metric], epoch)
 
         # Learning Rate
         writer.add_scalar('Learning_Rate', current_lr, epoch)
@@ -262,7 +247,8 @@ def train_model(writer, epochs: int = EPOCHS, batch_size: int = BATCH_SIZE, lr: 
                 'val_metrics': val_metrics,
                 'train_metrics': train_metrics,
             }
-            model_save(model, checkpoint, filename=f"model_{best_val_iou}.pth")
+            model_save(model, checkpoint,
+                       filename=f"model_unet_{best_val_iou}.pth")
         else:
             loop.set_description(
                 f'Epochs (Best IOU: {best_val_iou:.2f}%, No improvement: {patience_counter}/{EARLY_STOPPING_PATIENCE})')
