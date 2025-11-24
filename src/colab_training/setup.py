@@ -82,3 +82,5 @@ def main():
 
 
 main()
+
+# !cd bachlor_backup/src/autoencoder && python train.py

@@ -21,7 +21,7 @@ SEED = 42
 # Hyperparameters
 BATCH_SIZE = 16
 LEARNING_RATE = 1e-3
-EPOCHS = 50
+EPOCHS = 2
 IMAGE_SIZE = 256  # Smaller than 512 for efficiency
 # Size of the bottleneck feature map channels (or flattened vector)
 LATENT_DIM = 64
