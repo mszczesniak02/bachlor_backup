@@ -1,6 +1,14 @@
 # autopep8: off
 import sys
 import os
+
+# Fix for Colab: Prevent TensorFlow from accessing GPU to avoid conflicts with PyTorch
+try:
+    import tensorflow as tf
+    tf.config.set_visible_devices([], 'GPU')
+except ImportError:
+    pass
+
 from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
@@ -116,7 +124,7 @@ def train_model():
     optimizer = torch.optim.Adam(
         model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='min', factor=0.5, patience=SCHEDULER_PATIENCE, verbose=True
+        optimizer, mode='min', factor=0.5, patience=SCHEDULER_PATIENCE
     )
 
     best_loss = float('inf')

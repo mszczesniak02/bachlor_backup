@@ -70,7 +70,7 @@ def get_val_transforms():
     ])
 
 
-def dataloader_init(batch_size=BATCH_SIZE, num_workers=4):
+def dataloader_init(batch_size=BATCH_SIZE, num_workers=WORKERS):
     train_dataset = ConcreteDataset(
         root_dir=TRAIN_DIR,
         transform=get_transforms()
@@ -85,7 +85,7 @@ def dataloader_init(batch_size=BATCH_SIZE, num_workers=4):
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
-        num_workers=num_workers,
+        num_workers=WORKERS,
         pin_memory=True
     )
 
@@ -93,7 +93,7 @@ def dataloader_init(batch_size=BATCH_SIZE, num_workers=4):
         val_dataset,
         batch_size=batch_size,
         shuffle=False,
-        num_workers=num_workers,
+        num_workers=WORKERS,
         pin_memory=True
     )
 

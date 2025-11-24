@@ -7,6 +7,7 @@ if ON_COLAB:
 
     MODEL_DIR = "/content/models/autoencoder/"
     LOG_DIR = "/content/models_log/autoencoder/"
+    WORKERS = 2
 
 else:
     DEVICE = "cuda"
@@ -15,6 +16,7 @@ else:
 
     MODEL_DIR = "../../../models/autoencoder/"
     LOG_DIR = "../../../models_log/autoencoder/"
+    WORKERS = 4
 
 
 SEED = 42
