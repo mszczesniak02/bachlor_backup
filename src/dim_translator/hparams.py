@@ -1,1 +1,1 @@
-ON_COLAB = True
+ON_COLAB = False

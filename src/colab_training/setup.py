@@ -57,19 +57,28 @@ def make_dirs():
 #     print(f"  {destination} -> {source}")
 
 
-def set_colab():
-    dir = Path("..")
-    print(dir)
+def set_colab(path: str, on_colab: bool):
+    dir = Path(path)
     result = list(dir.rglob("hparams.[pP][yY]"))
     for r in result:
-        print(r)
+        with open(r, "r+") as f:
+            pos = f.tell()
+            line = f.readline()
+            if on_colab:
+                if line == "ON_COLAB = False\n":
+                    f.seek(pos)
+                    f.write("ON_COLAB = True\n")
+            else:
+                if line == "ON_COLAB = True\n":
+                    f.seek(pos)
+                    f.write("ON_COLAB = False\n")
 
 
 def main():
 
     # make_dirs()
     # mount_drive()
-    set_colab()
+    set_colab(path="..", on_colab=False)
 
 
 main()
