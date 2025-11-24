@@ -11,7 +11,7 @@ except ImportError:
 
 from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
-from tqdm.notebook import tqdm
+from tqdm.auto import tqdm
 import torch
 import torch.nn as nn
 import torchvision
@@ -133,7 +133,7 @@ def train_model():
 
     print("Starting training...")
 
-    epoch_loop = tqdm(range(EPOCHS), desc='Epochs', leave=False, position=0)
+    epoch_loop = tqdm(range(EPOCHS), desc='Epochs', leave=True, position=0)
     for epoch in epoch_loop:
         train_loss, step = train_epoch(
             model, train_loader, criterion, optimizer, DEVICE, writer, epoch, step
