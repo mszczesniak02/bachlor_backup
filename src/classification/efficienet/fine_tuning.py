@@ -2,7 +2,7 @@
 import torch
 import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
-from tqdm import tqdm
+from tqdm.auto import tqdm
 from datetime import datetime
 import os
 import numpy as np

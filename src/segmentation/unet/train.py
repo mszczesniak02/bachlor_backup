@@ -3,7 +3,7 @@ import sys
 import os
 from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
-from tqdm import tqdm
+from tqdm.auto import tqdm
 import torch
 # -------------------------importing common and utils -----------------------------
 

@@ -11,7 +11,7 @@ except ImportError:
 
 from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
-from tqdm import tqdm
+from tqdm.auto import tqdm
 import torch
 import torch.nn as nn
 import torchvision
@@ -40,7 +40,7 @@ def train_epoch(model, loader, criterion, optimizer, device, writer, epoch, step
     model.train()
     running_loss = 0.0
 
-    loop = tqdm(loader, desc='Training', leave=False)
+    loop = tqdm(loader, desc='Training', leave=False, position=0)
     for batch_idx, (images, targets) in enumerate(loop):
         images, targets = images.to(device), targets.to(device)
 
@@ -69,7 +69,7 @@ def validate(model, loader, criterion, device, writer, epoch):
     vis_images = []
     vis_outputs = []
 
-    loop = tqdm(loader, desc='Validating', leave=False)
+    loop = tqdm(loader, desc='Validating', leave=False, position=0)
     with torch.no_grad():
         for batch_idx, (images, targets) in enumerate(loop):
             images, targets = images.to(device), targets.to(device)
@@ -133,7 +133,7 @@ def train_model():
 
     print("Starting training...")
 
-    epoch_loop = tqdm(range(EPOCHS), desc='Epochs', leave=False)
+    epoch_loop = tqdm(range(EPOCHS), desc='Epochs', leave=False, position=0)
     for epoch in epoch_loop:
         train_loss, step = train_epoch(
             model, train_loader, criterion, optimizer, DEVICE, writer, epoch, step
