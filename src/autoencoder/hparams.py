@@ -1,20 +1,23 @@
-import torch
-
-# General
 ON_COLAB = False
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+if ON_COLAB:
+    DEVICE = "cuda"
+    TRAIN_DIR = "/content/datasets/multi/train_img/"
+    TEST_DIR = "/content/datasets/multi/test_img/"
+
+    MODEL_DIR = "/content/models/autoencoder/"
+    LOG_DIR = "/content/models_log/autoencoder/"
+
+else:
+    DEVICE = "cuda"
+    TRAIN_DIR = "../../../datasets/multi/train_img/"
+    TEST_DIR = "../../../datasets/multi/test_img/"
+
+    MODEL_DIR = "../../../models/autoencoder/"
+    LOG_DIR = "../../../models_log/autoencoder/"
+
+
 SEED = 42
-
-# Data Paths
-# We will filter for "0_brak" in the dataloader, but the root dir is the same
-TRAIN_DIR = "../../../datasets/multi/train_img/"
-TEST_DIR = "../../../datasets/multi/test_img/"
-
-
-# Model & Logging Paths
-MODEL_DIR = "../../../models/autoencoder/"
-LOG_DIR = "../../../models_log/autoencoder/"
-
 # Hyperparameters
 BATCH_SIZE = 16
 LEARNING_RATE = 1e-3
