@@ -11,7 +11,7 @@ except ImportError:
 
 from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
-from tqdm.auto import tqdm
+from tqdm.notebook import tqdm
 import torch
 import torch.nn as nn
 import torchvision
