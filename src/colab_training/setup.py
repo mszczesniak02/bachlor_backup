@@ -2,8 +2,10 @@
 # set devices to CUDA's
 import os
 import sys
-# from google.colab import drive
+from google.colab import drive
+import shutil
 import glob
+from tqdm import tqdm
 from pathlib import Path
 
 
@@ -36,25 +38,35 @@ def make_dirs():
         os.makedirs(dir, exist_ok=True)
 
 
-# def mount_drive():
+def mount_drive():
 
-#     drive.mount('/content/drive')
-#     source = '/content/drive/MyDrive/datasets/multi'  # Na Drive
-#     destination = '/content/datasets/multi'            # Link lokalny
+    drive.mount('/content/drive')
+    source = '/content/drive/MyDrive/datasets/multi'  # Na Drive
+    destination = '/content/datasets/multi'            # Link lokalny
 
-#     os.makedirs('/content/datasets', exist_ok=True)
+    os.makedirs('/content/datasets', exist_ok=True)
 
-#     if os.path.exists(destination):
-#         if os.path.islink(destination):
-#             os.unlink(destination)
-#         else:
-#             import shutil
-#             shutil.rmtree(destination)
+    if os.path.exists(destination):
+        if os.path.islink(destination):
+            os.unlink(destination)
+        else:
+            shutil.rmtree(destination)
 
-#     os.symlink(source, destination)
+    # os.symlink(source, destination)
+    print(f"Copying dataset from {source} to {destination}...")
 
-#     print(f"Link created!")
-#     print(f"  {destination} -> {source}")
+    # Count files for progress bar
+    total_files = sum([len(files) for r, d, files in os.walk(source)])
+
+    with tqdm(total=total_files, desc="Copying", unit="file") as pbar:
+        def copy_func(src, dst):
+            shutil.copy2(src, dst)
+            pbar.update(1)
+
+        shutil.copytree(source, destination, copy_function=copy_func)
+
+    print(f"Dataset copied!")
+    print(f"  {destination} <- {source}")
 
 
 def set_colab(path: str, on_colab: bool):
@@ -76,9 +88,9 @@ def set_colab(path: str, on_colab: bool):
 
 def main():
 
-    # make_dirs()
-    # mount_drive()
-    set_colab(path="..", on_colab=False)
+    make_dirs()
+    mount_drive()
+    set_colab(path="..", on_colab=True)
 
 
 main()
