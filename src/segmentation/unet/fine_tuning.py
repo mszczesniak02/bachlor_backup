@@ -177,7 +177,7 @@ def tune_single_model(bsize, lr, epochs, global_pbar, device=DEVICE):
 
     run_name = f"bs_{bsize}_lr_{lr:.1e}"
     # Writer per run
-    writer = SummaryWriter(MODEL_TRAIN_LOG_DIR + "/tuning_" + datetime.now().strftime('%H%M') + "/" + run_name)
+    writer = SummaryWriter(UNET_MODEL_TRAIN_LOG_DIR + "/tuning_" + datetime.now().strftime('%H%M') + "/" + run_name)
 
     # Re-init dataloaders for new batch size
     train_dl, val_dl = dataloader_init(batch_size=bsize)
