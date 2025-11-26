@@ -22,13 +22,13 @@ else:
 SEED = 42
 # Hyperparameters
 BATCH_SIZE = 16
-LEARNING_RATE = 1e-3
+LEARNING_RATE = 0.00050000
 EPOCHS = 2
 IMAGE_SIZE = 256  # Smaller than 512 for efficiency
 # Size of the bottleneck feature map channels (or flattened vector)
 LATENT_DIM = 64
 
 # Training
-PATIENCE = 10
+PATIENCE = 15
 SCHEDULER_PATIENCE = 5
 WEIGHT_DECAY = 1e-5
