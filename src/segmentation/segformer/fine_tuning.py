@@ -282,8 +282,8 @@ def run_tuning(batch_sizes, lrs, epochs=3):
 def main():
     # tuning params
     epochs = 3
-    batch_sizes = [4, 8, 16, 32]
-    lrs = [1e-3, 1e-4, 5e-4]
+    batch_sizes = [4, 8]
+    lrs = [1e-4, 6e-5, 1e-5]
 
     run_tuning(batch_sizes, lrs, epochs)
 

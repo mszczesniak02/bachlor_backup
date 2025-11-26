@@ -255,7 +255,7 @@ def run_tuning(batch_sizes, learning_rates, epochs=3):
 
 
 if __name__ == "__main__":
-    batch_sizes = [16, 8, 4]
-    learning_rates = [1.3e-3, 2.5e-4, 4.5e-5]
+    batch_sizes = [16, 32, 64]
+    learning_rates = [5e-4, 1e-4, 5e-5]
     run_tuning(batch_sizes, learning_rates)
     utils_cuda_clear()

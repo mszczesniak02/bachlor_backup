@@ -183,7 +183,7 @@ def run_tuning(batch_sizes, lrs, epochs=5):
 def main():
     # tuning params
     epochs = 5
-    batch_sizes = [8, 16, 32]
+    batch_sizes = [8,16,64,128]
     lrs = [1e-3, 5e-4, 1e-4]
 
     run_tuning(batch_sizes, lrs, epochs)
