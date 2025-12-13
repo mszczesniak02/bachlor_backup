@@ -2,10 +2,10 @@ ON_COLAB = False
 
 if ON_COLAB:
     # if using 16 GB gpu :>
-    MASK_TRAIN_PATH = r"/content/datasets/dataset_segmentation/train_lab"
-    IMG_TRAIN_PATH = r"/content/datasets/dataset_segmentation/train_img"
-    MASK_TEST_PATH = r"/content/datasets/dataset_segmentation/test_lab"
-    IMG_TEST_PATH = r"/content/datasets/dataset_segmentation/test_img"
+    MASK_TRAIN_PATH = r"/content/datasets/multi/train_lab"
+    IMG_TRAIN_PATH = r"/content/datasets/multi/train_img"
+    MASK_TEST_PATH = r"/content/datasets/multi/test_lab"
+    IMG_TEST_PATH = r"/content/datasets/multi/test_img"
     DEVICE = "cuda"
     WORKERS = 2
 
@@ -17,10 +17,10 @@ if ON_COLAB:
 
 else:
     # using local 2GB laptop :|
-    MASK_TRAIN_PATH = r"../../../../datasets/dataset_segmentation/train_lab"
-    IMG_TRAIN_PATH = r"../../../../datasets/dataset_segmentation/train_img"
-    MASK_TEST_PATH = r"../../../../datasets/dataset_segmentation/test_lab"
-    IMG_TEST_PATH = r"../../../../datasets/dataset_segmentation/test_img"
+    MASK_TRAIN_PATH = r"../../../../datasets/multi/train_lab"
+    IMG_TRAIN_PATH = r"../../../../datasets/multi/train_img"
+    MASK_TEST_PATH = r"../../../../datasets/multi/test_lab"
+    IMG_TEST_PATH = r"../../../../datasets/multi/test_img"
 
     UNET_MODEL_TRAIN_DIR = r"../../../models/segmentation/unet/"
     UNET_MODEL_TRAIN_LOG_DIR = r"../../../models_log/segmentation/unet/"
