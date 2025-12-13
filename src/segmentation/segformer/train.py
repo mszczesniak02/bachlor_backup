@@ -1,6 +1,7 @@
 # autopep8: off
 import sys
 import os
+import torch.nn.functional as F
 from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
 from tqdm.auto import tqdm
@@ -54,7 +55,7 @@ def calculate_metrics(predictions, targets, threshold=0.5):
     precision = TP / (TP + FP + epsilon)
     recall = TP / (TP + FN + epsilon)
     f1_score = 2 * (precision * recall) / (precision + recall + epsilon)
-    specificity = TN / (TN + FP + epsilon)
+    specificity = TN / (TN + FP + epsilon)import torch.nn.functional as F
 
     # IoU (Intersection over Union)
     intersection = (preds_flat * targets_flat).sum(dim=1)
@@ -86,7 +87,6 @@ def calculate_metrics(predictions, targets, threshold=0.5):
 
 
 def train_epoch(model, train_loader, criterion, optimizer, device, scaler):
-
     model.train()
     running_loss = .0
     metrics = {
@@ -100,11 +100,30 @@ def train_epoch(model, train_loader, criterion, optimizer, device, scaler):
         masks = masks.to(device)
 
         with autocast('cuda'):
-            # Forward pass
-            predictions = model(images)
-            loss = criterion(predictions, masks)
+            # SegFormer często zwraca obiekt (np. SemanticSegmenterOutput) lub tuple.
+            # Logity są zazwyczaj w polu .logits
+            outputs = model(images)
 
-        # Backward pass
+            # Obsługa różnych typów wyjścia (zależnie od biblioteki: timm vs transformers)
+            if hasattr(outputs, 'logits'):
+                logits = outputs.logits
+            else:
+                logits = outputs  # Zakładamy, że to tensor, jeśli nie ma .logits
+
+            # --- KRYTYCZNA POPRAWKA: UPSAMPLING ---
+            # SegFormer zwraca 128x128 (dla wejścia 512x512).
+            # Musimy to powiększyć do wymiaru maski (512x512) PRZED LOSS.
+            if logits.shape[-2:] != masks.shape[-2:]:
+                logits = F.interpolate(
+                    logits,
+                    size=masks.shape[-2:],  # Pobierz H, W z maski
+                    mode='bilinear',
+                    align_corners=False
+                )
+            # --------------------------------------
+
+            loss = criterion(logits, masks)
+
         optimizer.zero_grad()
         scaler.scale(loss).backward()
         scaler.step(optimizer)
@@ -113,7 +132,8 @@ def train_epoch(model, train_loader, criterion, optimizer, device, scaler):
         running_loss += loss.item()
 
         with torch.no_grad():
-            predictions_sigmoid = torch.sigmoid(predictions)
+            # Do metryk też przekazujemy powiększone logity
+            predictions_sigmoid = torch.sigmoid(logits)
             batch_metrics = calculate_metrics(predictions_sigmoid, masks)
 
             for key in metrics.keys():
@@ -137,37 +157,50 @@ def validate(model, val_loader, criterion, device):
     model.eval()
     running_loss = 0.0
     metrics = {
-        'iou': [], 'dice': [], 'recall': [],
-        'precision': [], 'f1_score': []
+        'iou': [], 'dice': [], 'recall': [], 'precision': [], 'f1_score': []
     }
+
     with torch.no_grad():
         for images, masks in tqdm(val_loader, desc="Validation", leave=False):
-
             images = images.to(device)
             masks = masks.to(device)
 
             with autocast('cuda'):
-                predictions = model(images)
-                loss = criterion(predictions, masks)
+                outputs = model(images)
+
+                if hasattr(outputs, 'logits'):
+                    logits = outputs.logits
+                else:
+                    logits = outputs
+
+                # --- UPSAMPLING W WALIDACJI ---
+                if logits.shape[-2:] != masks.shape[-2:]:
+                    logits = F.interpolate(
+                        logits,
+                        size=masks.shape[-2:],
+                        mode='bilinear',
+                        align_corners=False
+                    )
+                # ------------------------------
+
+                loss = criterion(logits, masks)
 
             running_loss += loss.item()
 
-            predictions_sigmoid = torch.sigmoid(predictions)
+            predictions_sigmoid = torch.sigmoid(logits)
             batch_metrics = calculate_metrics(predictions_sigmoid, masks)
 
             for key in metrics.keys():
                 value = batch_metrics[key]
-
                 if isinstance(value, torch.Tensor):
                     value = value.cpu().item()
-
                 metrics[key].append(batch_metrics[key])
 
-        avg_loss = running_loss / len(val_loader)
-        avg_metrics = {k: np.mean(v) for k, v in metrics.items()}
-        avg_metrics['loss'] = avg_loss
+    avg_loss = running_loss / len(val_loader)
+    avg_metrics = {k: np.mean(v) for k, v in metrics.items()}
+    avg_metrics['loss'] = avg_loss
 
-        return avg_metrics
+    return avg_metrics
 
 
 def train_model(writer, epochs: int = SEGFORMER_EPOCHS, batch_size: int = SEGFORMER_BATCH_SIZE, lr: float = SEGFORMER_LEARNING_RATE, device=DEVICE):
@@ -182,22 +215,21 @@ def train_model(writer, epochs: int = SEGFORMER_EPOCHS, batch_size: int = SEGFOR
 
     model = model_init(model_name="segformer").to(device)
 
-    criterion = DiceLoss()
-    print("Criterion initialized: DiceLoss")
+    criterion = DiceBCELoss()
+    print("Criterion initialized: DiceBCELoss")
 
-    optimizer = torch.optim.Adam(
+    optimizer = torch.optim.AdamW(
         model.parameters(),
-        lr=lr,
-        weight_decay=UNET_WEIGHT_DECAY,
+        lr=6e-5,  # <-- ZMIANA: SegFormer lubi niższe LR
+        weight_decay=0.01,  # <-- ZMIANA: AdamW wymaga nieco większego WD
     )
     print(f"Optimizer initialized: Adam")
 
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer,
-        mode='max',  # max iou
+        mode='min',  # Patrzymy na Loss
         factor=SCHEDULER_FACTOR,
         patience=SCHEDULER_PATIENCE,
-        min_lr=1e-7
     )
     print(f"Scheduler initialized: ReduceLROnPlateau")
 
@@ -226,7 +258,7 @@ def train_model(writer, epochs: int = SEGFORMER_EPOCHS, batch_size: int = SEGFOR
         val_metrics = validate(model, valid_dl, criterion, device)
 
         current_lr = optimizer.param_groups[0]['lr']
-        scheduler.step(val_metrics['iou'])
+        scheduler.step(val_metrics['loss'])
 
         # Log metrics
         metrics_to_log = ['loss', 'iou', 'dice',
