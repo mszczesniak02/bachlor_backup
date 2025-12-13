@@ -203,8 +203,8 @@ def train_model(writer, epochs: int = UNET_EPOCHS, batch_size: int = UNET_BATCH_
 
     model = model_init(model_name="unet").to(device)
 
-    criterion = DiceLoss()
-    print("Criterion initialized: DiceLoss")
+    criterion = DiceBCELoss()
+    print("Criterion initialized: Dice BCE Loss")
 
     optimizer = torch.optim.Adam(
         model.parameters(),
@@ -215,10 +215,11 @@ def train_model(writer, epochs: int = UNET_EPOCHS, batch_size: int = UNET_BATCH_
 
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer,
-        mode='max',  # max iou
+        mode='min',  # max iou
         factor=SCHEDULER_FACTOR,
         patience=SCHEDULER_PATIENCE,
-        min_lr=1e-7
+        min_lr=1e-7,
+        verbose=True,
     )
     print(f"Scheduler initialized: ReduceLROnPlateau")
 
@@ -247,7 +248,7 @@ def train_model(writer, epochs: int = UNET_EPOCHS, batch_size: int = UNET_BATCH_
         val_metrics = validate(model, valid_dl, criterion, device)
 
         current_lr = optimizer.param_groups[0]['lr']
-        scheduler.step(val_metrics['iou'])
+        scheduler.step(val_metrics['loss'])
 
         # Log metrics
         metrics_to_log = ['loss', 'iou', 'dice',

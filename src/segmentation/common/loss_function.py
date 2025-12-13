@@ -58,6 +58,34 @@ class DiceLoss(torch.nn.Module):
         return 1-dice
 
 
+class DiceBCELoss(torch.nn.Module):
+    def __init__(self, weight=None, size_average=True):
+        super(DiceBCELoss, self).__init__()
+
+    def forward(self, inputs, targets, smooth=1):
+        # inputs: surowe logity z modelu (bez sigmoidy)
+        # targets: binarne maski (0 lub 1)
+
+        # 1. Komponent BCE (z wbudowaną Sigmoidą dla stabilności numerycznej)
+        bce_loss = F.binary_cross_entropy_with_logits(
+            inputs, targets, reduction='mean')
+
+        # 2. Komponent Dice
+        inputs_sigmoid = torch.sigmoid(inputs)
+
+        # Spłaszczenie tensorów do wektorów
+        inputs_flat = inputs_sigmoid.view(-1)
+        targets_flat = targets.view(-1)
+
+        intersection = (inputs_flat * targets_flat).sum()
+        dice_score = (2. * intersection + smooth) / \
+            (inputs_flat.sum() + targets_flat.sum() + smooth)
+        dice_loss = 1 - dice_score
+
+        # Suma ważona: 50% BCE + 50% Dice
+        return bce_loss + dice_loss
+
+
 class DiceFocalLoss(torch.nn.Module):
     def __init__(self, smooth=1e-6):
         super(DiceLoss, self).__init__()

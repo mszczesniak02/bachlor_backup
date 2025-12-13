@@ -98,7 +98,3 @@ def dataloader_init(batch_size=BATCH_SIZE, num_workers=WORKERS):
     )
 
     return train_loader, val_loader
-
-
-# x = ConcreteDataset(TRAIN_DIR)
-# print(x[10])
