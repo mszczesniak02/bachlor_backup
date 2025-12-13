@@ -158,8 +158,11 @@ def train_epoch(model, train_loader, criterion, optimizer, device, scaler):
 def validate(model, val_loader, criterion, device):
     model.eval()
     running_loss = 0.0
-    iou_score = 0.0
-    dice_score = 0.0
+    metrics = {
+        'iou': [], 'dice': [], 'recall': [],
+        'precision': [], 'f1_score': []
+    }
+
     with torch.no_grad():
         for images, masks in tqdm(val_loader, desc="Validation"):
             images = images.to(device)
@@ -171,21 +174,21 @@ def validate(model, val_loader, criterion, device):
 
             running_loss += loss.item()
 
-            # Przekształcenie predykcji na maski binarne
-            pred_masks = torch.sigmoid(predictions) > 0.5
+            # Calculate metrics
+            predictions_sigmoid = torch.sigmoid(predictions)
+            batch_metrics = calculate_metrics(predictions_sigmoid, masks)
 
-            iou_score += iou_metric(pred_masks, masks.bool()).item()
-            dice_score += dice_metric(pred_masks, masks.bool()).item()
+            for key in metrics.keys():
+                value = batch_metrics[key]
+                if isinstance(value, torch.Tensor):
+                    value = value.cpu().item()
+                metrics[key].append(batch_metrics[key])
 
     avg_loss = running_loss / len(val_loader)
-    avg_iou = iou_score / len(val_loader)
-    avg_dice = dice_score / len(val_loader)
+    avg_metrics = {k: np.mean(v) for k, v in metrics.items()}
+    avg_metrics['loss'] = avg_loss
 
-    return {
-        'loss': avg_loss,
-        'iou': avg_iou,
-        'dice': avg_dice
-    }
+    return avg_metrics
 
 
 def train_model(writer, epochs: int = UNET_EPOCHS, batch_size: int = UNET_BATCH_SIZE, lr: float = UNET_LEARNING_RATE, device=DEVICE):
