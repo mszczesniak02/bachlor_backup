@@ -6,7 +6,6 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm.auto import tqdm
 import torch
 from torch.cuda.amp import autocast, GradScaler
-from torchmetrics.functional import jaccard_index, dice
 # -------------------------importing common and utils -----------------------------
 
 original_sys_path = sys.path.copy()
@@ -26,6 +25,28 @@ from utils.utils import *
 sys.path = original_sys_path
 
 # --------------------------------------------------------------------------------
+
+# -----------------metrics-----------------
+
+
+def dice_metric(y_pred, y_true, smooth=1e-6):
+    y_pred = y_pred.view(-1)
+    y_true = y_true.view(-1)
+    intersection = (y_pred * y_true).sum()
+    dice_score = (2. * intersection + smooth) / \
+        (y_pred.sum() + y_true.sum() + smooth)
+    return dice_score
+
+
+def iou_metric(y_pred, y_true, smooth=1e-6):
+    y_pred = y_pred.view(-1)
+    y_true = y_true.view(-1)
+    intersection = (y_pred * y_true).sum()
+    total = (y_pred + y_true).sum()
+    union = total - intersection
+    iou_score = (intersection + smooth) / (union + smooth)
+    return iou_score
+# -----------------------------------------
 
 
 def calculate_metrics(predictions, targets, threshold=0.5):
