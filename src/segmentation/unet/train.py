@@ -174,15 +174,18 @@ def validate(model, val_loader, criterion, device):
             # Przekształcenie predykcji na maski binarne
             pred_masks = torch.sigmoid(predictions) > 0.5
 
-            iou_score += jaccard_index(pred_masks,
-                                       masks.bool(), task='binary').item()
-            dice_score += dice(pred_masks, masks.bool()).item()
+            iou_score += iou_metric(pred_masks, masks.bool()).item()
+            dice_score += dice_metric(pred_masks, masks.bool()).item()
 
     avg_loss = running_loss / len(val_loader)
     avg_iou = iou_score / len(val_loader)
     avg_dice = dice_score / len(val_loader)
 
-    return avg_loss, avg_iou, avg_dice
+    return {
+        'loss': avg_loss,
+        'iou': avg_iou,
+        'dice': avg_dice
+    }
 
 
 def train_model(writer, epochs: int = UNET_EPOCHS, batch_size: int = UNET_BATCH_SIZE, lr: float = UNET_LEARNING_RATE, device=DEVICE):
