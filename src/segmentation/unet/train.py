@@ -191,7 +191,7 @@ def validate(model, val_loader, criterion, device):
     return avg_metrics
 
 
-def train_model(writer, epochs: int = UNET_EPOCHS, batch_size: int = UNET_BATCH_SIZE, lr: float = UNET_LEARNING_RATE, device=DEVICE):
+def train_model(writer, epochs: int = UNET_EPOCHS, batch_size: int = UNET_BATCH_SIZE, lr: float = UNET_LEARNING_RATE, device=DEVICE, resume_checkpoint=None):
     """
     Main training loop
     """
@@ -232,15 +232,20 @@ def train_model(writer, epochs: int = UNET_EPOCHS, batch_size: int = UNET_BATCH_
     start_epoch = 0
 
     # Resume logic
-    if RESUME_CHECKPOINT is not None and os.path.isfile(RESUME_CHECKPOINT):
-        print(f"Loading checkpoint from {RESUME_CHECKPOINT}")
-        checkpoint = torch.load(
-            RESUME_CHECKPOINT, map_location=device, weights_only=False)
-        model.load_state_dict(checkpoint['model_state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        start_epoch = checkpoint['epoch'] + 1
-        # If saved, load scaler/scheduler too if available
-        # Assuming simple resume for now
+    # Resume logic
+    checkpoint_path = resume_checkpoint if resume_checkpoint is not None else RESUME_CHECKPOINT
+    if checkpoint_path is not None:
+        if os.path.isfile(checkpoint_path):
+            print(f"Loading checkpoint from {checkpoint_path}")
+            checkpoint = torch.load(
+                checkpoint_path, map_location=device, weights_only=False)
+            model.load_state_dict(checkpoint['model_state_dict'])
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            start_epoch = checkpoint['epoch'] + 1
+        else:
+            print(f"Checkpoint file not found at: {checkpoint_path}")
+    else:
+        print("No checkpoint provided for training start.")
 
     writer.add_text("Hparams", f"""
     -           Learning Rate: {lr}
@@ -336,7 +341,8 @@ def main() -> int:
     seed_everything(SEED)
     print(f"Seeding with {SEED}")
 
-    model = train_model(writer=writer)
+    model = train_model(writer=writer, resume_checkpoint=RESUME_CHECKPOINT)
+# test test
 
 
 if __name__ == "__main__":
