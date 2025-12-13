@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 from torch.amp import autocast, GradScaler
 import numpy as np
+from sklearn.metrics import confusion_matrix, precision_recall_fscore_support
 
 # -------------------------importing common and utils -----------------------------
 
@@ -30,11 +31,15 @@ sys.path = original_sys_path
 # --------------------------------------------------------------------------------
 
 
+# --------------------------------------------------------------------------------
+RESUME_CHECKPOINT = None  # "path/to/checkpoint.pth"
+
+
 def train_epoch(model, loader, criterion, optimizer, device, scaler):
     model.train()
     running_loss = 0.0
-    correct = 0
-    total = 0
+    all_preds = []
+    all_labels = []
 
     loop = tqdm(loader, desc='Training', leave=False)
     for images, labels in loop:
@@ -53,23 +58,35 @@ def train_epoch(model, loader, criterion, optimizer, device, scaler):
         running_loss += loss.item()
 
         _, predicted = outputs.max(1)
-        total += labels.size(0)
-        correct += predicted.eq(labels).sum().item()
 
-        acc = 100. * correct / total
+        all_preds.extend(predicted.cpu().numpy())
+        all_labels.extend(labels.cpu().numpy())
+
+        acc = (predicted == labels).float().mean().item()
         loop.set_postfix({'loss': f'{loss.item():.4f}', 'acc': f'{acc:.2f}%'})
 
     epoch_loss = running_loss / len(loader)
-    epoch_acc = 100. * correct / total
 
-    return epoch_loss, epoch_acc
+    # Calculate metrics
+    precision, recall, f1, _ = precision_recall_fscore_support(
+        all_labels, all_preds, average='macro', zero_division=0)
+    acc = (np.array(all_preds) == np.array(all_labels)).mean()
+
+    metrics = {
+        'accuracy': acc,
+        'precision': precision,
+        'recall': recall,
+        'f1_score': f1
+    }
+
+    return epoch_loss, metrics, all_labels, all_preds
 
 
 def validate(model, loader, criterion, device):
     model.eval()
     running_loss = 0.0
-    correct = 0
-    total = 0
+    all_preds = []
+    all_labels = []
 
     loop = tqdm(loader, desc='Validating', leave=False)
     with torch.no_grad():
@@ -83,17 +100,29 @@ def validate(model, loader, criterion, device):
             running_loss += loss.item()
 
             _, predicted = outputs.max(1)
-            total += labels.size(0)
-            correct += predicted.eq(labels).sum().item()
 
-            acc = 100. * correct / total
+            all_preds.extend(predicted.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
+
+            acc = (predicted == labels).float().mean().item()
             loop.set_postfix(
                 {'loss': f'{loss.item():.4f}', 'acc': f'{acc:.2f}%'})
 
     epoch_loss = running_loss / len(loader)
-    epoch_acc = 100. * correct / total
 
-    return epoch_loss, epoch_acc
+    # Calculate metrics
+    precision, recall, f1, _ = precision_recall_fscore_support(
+        all_labels, all_preds, average='macro', zero_division=0)
+    acc = (np.array(all_preds) == np.array(all_labels)).mean()
+
+    metrics = {
+        'accuracy': acc,
+        'precision': precision,
+        'recall': recall,
+        'f1_score': f1
+    }
+
+    return epoch_loss, metrics, all_labels, all_preds
 
 
 def train_model():
@@ -127,28 +156,56 @@ def train_model():
     best_loss = float('inf')
     patience_counter = 0
 
+    start_epoch = 0
+    if RESUME_CHECKPOINT is not None and os.path.isfile(RESUME_CHECKPOINT):
+        print(f"Loading checkpoint from {RESUME_CHECKPOINT}")
+        checkpoint = torch.load(RESUME_CHECKPOINT, map_location=device)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        if 'optimizer_state_dict' in checkpoint:
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        if 'epoch' in checkpoint:
+            start_epoch = checkpoint['epoch'] + 1
+
     print("Starting training...")
 
     epochs = ENTRY_EPOCHS
-    loop = tqdm(range(epochs), desc='Epochs')
+    loop = tqdm(range(start_epoch, epochs), desc='Epochs')
+
+    class_names = ["no_crack", "crack"]
 
     for epoch in loop:
-        train_loss, train_acc = train_epoch(
+        train_loss, train_metrics, train_labels, train_preds = train_epoch(
             model, train_dl, criterion, optimizer, device, scaler)
-        val_loss, val_acc = validate(model, val_dl, criterion, device)
+        val_loss, val_metrics, val_labels, val_preds = validate(
+            model, val_dl, criterion, device)
 
         # Logging
         writer.add_scalar('Loss/train', train_loss, epoch)
         writer.add_scalar('Loss/val', val_loss, epoch)
-        writer.add_scalar('Accuracy/train', train_acc, epoch)
-        writer.add_scalar('Accuracy/val', val_acc, epoch)
+
+        for metric in ['accuracy', 'precision', 'recall', 'f1_score']:
+            metric_name = metric.replace('_', '-').title()
+            writer.add_scalar(f'{metric_name}/train',
+                              train_metrics[metric], epoch)
+            writer.add_scalar(f'{metric_name}/val', val_metrics[metric], epoch)
+
         writer.add_scalar(
             'Learning_Rate', optimizer.param_groups[0]['lr'], epoch)
 
+        # Confusion Matrix
+        cm_train = confusion_matrix(train_labels, train_preds)
+        cm_val = confusion_matrix(val_labels, val_preds)
+
+        fig_train = plot_confusion_matrix(cm_train, class_names)
+        writer.add_figure('train/confusion_matrix', fig_train, epoch)
+
+        fig_val = plot_confusion_matrix(cm_val, class_names)
+        writer.add_figure('val/confusion_matrix', fig_val, epoch)
+
         scheduler.step(val_loss)
 
-        # Save best model logic (based on lowest loss usually better for classification stability, or highest acc)
-        # Using accuracy here as primary metric for simplicity, or loss if desired.
+        # for compatibility with old logic using percentage
+        val_acc = val_metrics['accuracy'] * 100
         if val_acc > best_acc:
             best_acc = val_acc
             best_loss = val_loss
@@ -184,8 +241,8 @@ def train_model():
     print("\nRunning on Test Set with Best Model...")
     checkpoint = torch.load(f"{MODEL_DIR}/best_model.pth")
     model.load_state_dict(checkpoint['model_state_dict'])
-    test_loss, test_acc = validate(model, test_dl, criterion, device)
-    print(f"Test Accuracy: {test_acc:.2f}%")
+    test_loss, test_metrics, _, _ = validate(model, test_dl, criterion, device)
+    print(f"Test Accuracy: {test_metrics['accuracy']*100:.2f}%")
 
 
 if __name__ == "__main__":

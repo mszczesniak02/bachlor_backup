@@ -26,6 +26,7 @@ from utils.utils import *
 sys.path = original_sys_path
 
 # --------------------------------------------------------------------------------
+RESUME_CHECKPOINT = None  # "path/to/checkpoint.pth"
 
 
 def calculate_metrics(predictions, targets, threshold=0.5):
@@ -55,7 +56,7 @@ def calculate_metrics(predictions, targets, threshold=0.5):
     precision = TP / (TP + FP + epsilon)
     recall = TP / (TP + FN + epsilon)
     f1_score = 2 * (precision * recall) / (precision + recall + epsilon)
-    specificity = TN / (TN + FP + epsilon)import torch.nn.functional as F
+    specificity = TN / (TN + FP + epsilon)
 
     # IoU (Intersection over Union)
     intersection = (preds_flat * targets_flat).sum(dim=1)
@@ -240,6 +241,16 @@ def train_model(writer, epochs: int = SEGFORMER_EPOCHS, batch_size: int = SEGFOR
     best_epoch = 0
     patience_counter = 0
 
+    start_epoch = 0
+
+    # Resume logic
+    if RESUME_CHECKPOINT is not None and os.path.isfile(RESUME_CHECKPOINT):
+        print(f"Loading checkpoint from {RESUME_CHECKPOINT}")
+        checkpoint = torch.load(RESUME_CHECKPOINT, map_location=device)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        start_epoch = checkpoint['epoch'] + 1
+
     writer.add_text("Hparams", f"""
     -           Learning Rate: {lr}
     -              Batch Size: {batch_size}
@@ -250,7 +261,7 @@ def train_model(writer, epochs: int = SEGFORMER_EPOCHS, batch_size: int = SEGFOR
     -                  Device: {DEVICE}
     """)
 
-    loop = tqdm(range(epochs), desc="Epochs", leave=False)
+    loop = tqdm(range(start_epoch, epochs), desc="Epochs", leave=False)
     for epoch in loop:
 
         train_metrics = train_epoch(
@@ -262,7 +273,7 @@ def train_model(writer, epochs: int = SEGFORMER_EPOCHS, batch_size: int = SEGFOR
 
         # Log metrics
         metrics_to_log = ['loss', 'iou', 'dice',
-                          'precision', 'recall', 'f1_score']
+                          'precision', 'recall', 'f1_score', 'accuracy', 'specificity']
         for metric in metrics_to_log:
             metric_name = metric.replace(
                 '_', '-').title() if metric != 'iou' else 'IoU'
@@ -272,6 +283,38 @@ def train_model(writer, epochs: int = SEGFORMER_EPOCHS, batch_size: int = SEGFOR
 
         # Learning Rate
         writer.add_scalar('Learning_Rate', current_lr, epoch)
+
+        # Visualization
+        try:
+            # Get a sample batch
+            vis_imgs, vis_masks = next(iter(valid_dl))
+            vis_imgs = vis_imgs.to(device)
+            vis_masks = vis_masks.to(device)
+
+            with torch.no_grad():
+                with autocast('cuda'):
+                    outputs = model(vis_imgs)
+                    if hasattr(outputs, 'logits'):
+                        vis_logits = outputs.logits
+                    else:
+                        vis_logits = outputs
+
+                    if vis_logits.shape[-2:] != vis_masks.shape[-2:]:
+                        vis_logits = F.interpolate(
+                            vis_logits,
+                            size=vis_masks.shape[-2:],
+                            mode='bilinear',
+                            align_corners=False
+                        )
+
+            vis_preds = (torch.sigmoid(vis_logits) > 0.5).float()
+
+            writer.add_images('Visualization/Input', vis_imgs[:4], epoch)
+            writer.add_images('Visualization/GroundTruth',
+                              vis_masks[:4], epoch)
+            writer.add_images('Visualization/Prediction', vis_preds[:4], epoch)
+        except Exception as e:
+            print(f"Visualization failed: {e}")
 
         # SAVE BEST MODEL
         if val_metrics['iou'] > best_val_iou:

@@ -1,11 +1,31 @@
 from torch.cuda import empty_cache
+import io
+import itertools
 import matplotlib.pyplot as plt
 import numpy as np
+import seaborn as sns
 
 import torch
 import random
 import os
 import gc
+
+
+def plot_confusion_matrix(cm, class_names):
+    """
+    Returns a matplotlib figure containing the plotted confusion matrix.
+
+    Args:
+        cm (array, shape = [n, n]): a confusion matrix of integer classes
+        class_names (array, shape = [n]): String names of the integer classes
+    """
+    figure = plt.figure(figsize=(8, 8))
+    sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", cbar=False,
+                xticklabels=class_names, yticklabels=class_names)
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
+    plt.tight_layout()
+    return figure
 
 
 def seed_everything(seed=42):

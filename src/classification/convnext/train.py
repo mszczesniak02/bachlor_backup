@@ -34,6 +34,9 @@ sys.path = original_sys_path
 
 # --------------------------------------------------------------------------------
 
+# --------------------------------------------------------------------------------
+RESUME_CHECKPOINT = None  # "path/to/checkpoint.pth"
+
 
 def plot_confusion_matrix(all_labels, all_preds, class_names, writer, epoch, tag='confusion_matrix'):
     cm = confusion_matrix(all_labels, all_preds)
@@ -185,7 +188,18 @@ def train_model(writer, epochs=CONV_EPOCHS, batch_size=CONV_BATCH_SIZE, lr=CONV_
     best_f1 = 0.0
     best_model_path = None
     epochs_without_improvement = 0
+    epochs_without_improvement = 0
     step = 0
+
+    start_epoch = 0
+    if RESUME_CHECKPOINT is not None and os.path.isfile(RESUME_CHECKPOINT):
+        print(f"Loading checkpoint from {RESUME_CHECKPOINT}")
+        checkpoint = torch.load(RESUME_CHECKPOINT, map_location=device)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        if 'optimizer_state_dict' in checkpoint:
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        if 'epoch' in checkpoint:
+            start_epoch = checkpoint['epoch'] + 1
 
     scaler = GradScaler('cuda')
 
@@ -194,7 +208,7 @@ def train_model(writer, epochs=CONV_EPOCHS, batch_size=CONV_BATCH_SIZE, lr=CONV_
                        for p in model.parameters() if p.requires_grad)
     print(f"Total parameters: {total_params:,}")
 
-    epoch_loop = tqdm(range(epochs), desc='Epochs', leave=False)
+    epoch_loop = tqdm(range(start_epoch, epochs), desc='Epochs', leave=False)
     for epoch in epoch_loop:
         train_loss, train_metrics, step, train_labels, train_preds = train_epoch(
             model, train_loader, criterion, optimizer, device, writer, epoch, step, scaler

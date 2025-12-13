@@ -25,7 +25,7 @@ from utils.utils import *
 sys.path = original_sys_path
 
 # --------------------------------------------------------------------------------
-
+RESUME_CHECKPOINT = None  # "path/to/checkpoint.pth"
 # -----------------metrics-----------------
 
 
@@ -229,6 +229,18 @@ def train_model(writer, epochs: int = UNET_EPOCHS, batch_size: int = UNET_BATCH_
     best_epoch = 0
     patience_counter = 0
 
+    start_epoch = 0
+
+    # Resume logic
+    if RESUME_CHECKPOINT is not None and os.path.isfile(RESUME_CHECKPOINT):
+        print(f"Loading checkpoint from {RESUME_CHECKPOINT}")
+        checkpoint = torch.load(RESUME_CHECKPOINT, map_location=device)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        start_epoch = checkpoint['epoch'] + 1
+        # If saved, load scaler/scheduler too if available
+        # Assuming simple resume for now
+
     writer.add_text("Hparams", f"""
     -           Learning Rate: {lr}
     -              Batch Size: {batch_size}
@@ -239,7 +251,7 @@ def train_model(writer, epochs: int = UNET_EPOCHS, batch_size: int = UNET_BATCH_
     -                  Device: {DEVICE}
     """)
 
-    loop = tqdm(range(epochs), desc="Epochs", leave=False)
+    loop = tqdm(range(start_epoch, epochs), desc="Epochs", leave=False)
     for epoch in loop:
 
         train_metrics = train_epoch(
@@ -251,7 +263,7 @@ def train_model(writer, epochs: int = UNET_EPOCHS, batch_size: int = UNET_BATCH_
 
         # Log metrics
         metrics_to_log = ['loss', 'iou', 'dice',
-                          'precision', 'recall', 'f1_score']
+                          'precision', 'recall', 'f1_score', 'accuracy', 'specificity']
         for metric in metrics_to_log:
             metric_name = metric.replace(
                 '_', '-').title() if metric != 'iou' else 'IoU'
@@ -261,6 +273,26 @@ def train_model(writer, epochs: int = UNET_EPOCHS, batch_size: int = UNET_BATCH_
 
         # Learning Rate
         writer.add_scalar('Learning_Rate', current_lr, epoch)
+
+        # Visualization
+        try:
+            # Get a sample batch
+            vis_imgs, vis_masks = next(iter(valid_dl))
+            vis_imgs = vis_imgs.to(device)
+            vis_masks = vis_masks.to(device)
+
+            with torch.no_grad():
+                with autocast('cuda'):
+                    vis_preds = model(vis_imgs)
+
+            # Helper to normalize for display if needed, but tensorboard handles 0-1 float
+            writer.add_images('Visualization/Input', vis_imgs[:4], epoch)
+            writer.add_images('Visualization/GroundTruth',
+                              vis_masks[:4], epoch)
+            writer.add_images('Visualization/Prediction',
+                              (torch.sigmoid(vis_preds[:4]) > 0.5).float(), epoch)
+        except Exception as e:
+            print(f"Visualization failed: {e}")
 
         # SAVE BEST MODEL
         if val_metrics['iou'] > best_val_iou:
