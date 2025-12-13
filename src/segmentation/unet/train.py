@@ -219,7 +219,6 @@ def train_model(writer, epochs: int = UNET_EPOCHS, batch_size: int = UNET_BATCH_
         factor=SCHEDULER_FACTOR,
         patience=SCHEDULER_PATIENCE,
         min_lr=1e-7,
-        verbose=True,
     )
     print(f"Scheduler initialized: ReduceLROnPlateau")
 
