@@ -216,6 +216,8 @@ def train_model(writer, epochs: int = UNET_EPOCHS, batch_size: int = UNET_BATCH_
     )
     print(f"Scheduler initialized: ReduceLROnPlateau")
 
+    scaler = GradScaler()
+
     # params for inter-epoch model accuracy checking
     best_val_iou = 0.0
     best_epoch = 0
@@ -235,7 +237,7 @@ def train_model(writer, epochs: int = UNET_EPOCHS, batch_size: int = UNET_BATCH_
     for epoch in loop:
 
         train_metrics = train_epoch(
-            model, train_dl, criterion, optimizer, device)
+            model, train_dl, criterion, optimizer, device, scaler)
         val_metrics = validate(model, valid_dl, criterion, device)
 
         current_lr = optimizer.param_groups[0]['lr']
