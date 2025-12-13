@@ -113,7 +113,7 @@ def train_epoch(model, train_loader, criterion, optimizer, device, scaler):
     running_loss = .0
     metrics = {
         'iou': [], 'dice': [], 'recall': [],
-        'precision': [], 'f1_score': []
+        'precision': [], 'f1_score': [], 'accuracy': [], 'specificity': []
     }
 
     loop = tqdm(train_loader, desc="Training", leave=False)
@@ -160,7 +160,7 @@ def validate(model, val_loader, criterion, device):
     running_loss = 0.0
     metrics = {
         'iou': [], 'dice': [], 'recall': [],
-        'precision': [], 'f1_score': []
+        'precision': [], 'f1_score': [], 'accuracy': [], 'specificity': []
     }
 
     with torch.no_grad():

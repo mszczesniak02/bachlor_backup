@@ -2,6 +2,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import os
+from entry_processing.hparams import *
 
 
 class SimpleClassificator(nn.Module):
@@ -53,3 +55,36 @@ class SimpleClassificator(nn.Module):
 def model_init(num_classes=2):
     model = SimpleClassificator(num_classes=num_classes)
     return model
+
+
+def model_load(filepath=None, device=DEVICE):
+    model = model_init(num_classes=NUM_CLASSES)
+
+    if filepath is None:
+        filepath = f"{MODEL_DIR}/best_model.pth"
+
+    if os.path.isfile(filepath):
+        checkpoint = torch.load(filepath, map_location=device)
+        model.load_state_dict(checkpoint['model_state_dict'])
+    else:
+        print(
+            f"Warning: Model file {filepath} not found. Returning initialized model.")
+
+    model.to(device)
+    model.eval()
+    return model
+
+
+def model_save(model, filepath, epoch=None, optimizer=None, loss=None):
+    checkpoint = {
+        'model_state_dict': model.state_dict(),
+    }
+
+    if epoch is not None:
+        checkpoint['epoch'] = epoch
+    if optimizer is not None:
+        checkpoint['optimizer_state_dict'] = optimizer.state_dict()
+    if loss is not None:
+        checkpoint['loss'] = loss
+
+    torch.save(checkpoint, filepath)
