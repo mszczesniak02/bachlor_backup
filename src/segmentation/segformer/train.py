@@ -5,6 +5,7 @@ from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
 from tqdm.auto import tqdm
 import torch
+from torch.amp import autocast, GradScaler
 # -------------------------importing common and utils -----------------------------
 
 original_sys_path = sys.path.copy()
@@ -84,7 +85,7 @@ def calculate_metrics(predictions, targets, threshold=0.5):
     }
 
 
-def train_epoch(model, train_loader, criterion, optimizer, device):
+def train_epoch(model, train_loader, criterion, optimizer, device, scaler):
 
     model.train()
     running_loss = .0
@@ -97,13 +98,17 @@ def train_epoch(model, train_loader, criterion, optimizer, device):
     for batch_idx, (images, masks) in enumerate(loop):
         images = images.to(device)
         masks = masks.to(device)
-        # Forward pass
-        predictions = model(images)
-        loss = criterion(predictions, masks)
+
+        with autocast('cuda'):
+            # Forward pass
+            predictions = model(images)
+            loss = criterion(predictions, masks)
+
         # Backward pass
         optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
 
         running_loss += loss.item()
 
@@ -141,8 +146,9 @@ def validate(model, val_loader, criterion, device):
             images = images.to(device)
             masks = masks.to(device)
 
-            predictions = model(images)
-            loss = criterion(predictions, masks)
+            with autocast('cuda'):
+                predictions = model(images)
+                loss = criterion(predictions, masks)
 
             running_loss += loss.item()
 
@@ -195,6 +201,8 @@ def train_model(writer, epochs: int = SEGFORMER_EPOCHS, batch_size: int = SEGFOR
     )
     print(f"Scheduler initialized: ReduceLROnPlateau")
 
+    scaler = GradScaler('cuda')
+
     # params for inter-epoch model accuracy checking
     best_val_iou = 0.0
     best_epoch = 0
@@ -214,7 +222,7 @@ def train_model(writer, epochs: int = SEGFORMER_EPOCHS, batch_size: int = SEGFOR
     for epoch in loop:
 
         train_metrics = train_epoch(
-            model, train_dl, criterion, optimizer, device)
+            model, train_dl, criterion, optimizer, device, scaler)
         val_metrics = validate(model, valid_dl, criterion, device)
 
         current_lr = optimizer.param_groups[0]['lr']

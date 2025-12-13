@@ -1,14 +1,22 @@
 # not to be run from here, only imported
-from classification.common.hparams import *
-
-import torch
-from torch.utils.data import Dataset, DataLoader
-import albumentations as A
-from albumentations.pytorch import ToTensorV2
-from PIL import Image
-import numpy as np
-import os
 from pathlib import Path
+import numpy as np
+from PIL import Image
+from albumentations.pytorch import ToTensorV2
+import albumentations as A
+from torch.utils.data import Dataset, DataLoader
+import torch
+from entry_processing.hparams import *
+import sys
+import os
+
+original_sys_path = sys.path.copy()
+# moving to "src/"
+sys.path.append(os.path.abspath(
+    os.path.join(os.path.dirname(__file__), '../')))
+
+
+sys.path = original_sys_path
 
 
 class EntryDataset(Dataset):
@@ -18,17 +26,27 @@ class EntryDataset(Dataset):
         self.transform = transform
 
         self.samples = []
-        self.class_names = ["crack", "no_crack"]
+        # 'crack' and 'no_crack' are the folder names
+        self.class_names = ["no_crack", "crack"]
+        self.class_to_idx = {cls_name: i for i,
+                             cls_name in enumerate(self.class_names)}
 
-        for class_idx, class_name in enumerate(self.class_names):
-            class_dir = self.root_dir / class_name / "masks"
+        for class_name in self.class_names:
+            class_dir = self.root_dir / class_name
 
             if not class_dir.exists():
+                print(f"Warning: Directory {class_dir} does not exist.")
                 continue
 
+            class_idx = self.class_to_idx[class_name]
+
+            # Recursively find images if needed, but simple iteration is usually enough
             for img_file in class_dir.iterdir():
-                if img_file.suffix.lower() in ['.jpg', '.jpeg', '.png']:
+                if img_file.suffix.lower() in ['.jpg', '.jpeg', '.png', '.bmp', '.tif']:
                     self.samples.append((str(img_file), class_idx))
+
+        if len(self.samples) == 0:
+            print(f"Warning: No images found in {root_dir}")
 
     def __len__(self):
         return len(self.samples)
@@ -36,29 +54,32 @@ class EntryDataset(Dataset):
     def __getitem__(self, idx):
         img_path, label = self.samples[idx]
 
-        # Load as RGB (3 channels) to satisfy model requirements
-        image = np.array(Image.open(img_path).convert('RGB'))
+        try:
+            # Load as RGB
+            image = np.array(Image.open(img_path).convert('RGB'))
 
-        if self.transform:
-            augmented = self.transform(image=image)
-            image = augmented['image']
+            if self.transform:
+                augmented = self.transform(image=image)
+                image = augmented['image']
 
-        return image, label
+            return image, label
 
-    def get_class_distribution(self):
-        distribution = {i: 0 for i in range(5)}
-        for _, label in self.samples:
-            distribution[label] += 1
-        return distribution
+        except Exception as e:
+            print(f"Error loading {img_path}: {e}")
+            # Return a dummy tensor or handle error appropriately
+            # For simplicity, returning zeros (not ideal but avoids crash)
+            return torch.zeros((3, ENTRY_IMAGE_SIZE, ENTRY_IMAGE_SIZE)), label
 
 
-def get_transforms(image_size=DEFAULT_IMAGE_SIZE, is_training=True):
+def get_transforms(image_size=ENTRY_IMAGE_SIZE, is_training=True):
     if is_training:
         return A.Compose([
             A.Resize(height=image_size, width=image_size),
             A.HorizontalFlip(p=0.5),
             A.VerticalFlip(p=0.5),
-            A.Rotate(limit=15, p=0.5),
+            A.Rotate(limit=20, p=0.5),
+            A.ColorJitter(brightness=0.1, contrast=0.1,
+                          saturation=0.1, hue=0.05, p=0.3),
             A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
             ToTensorV2()
         ])
@@ -70,14 +91,10 @@ def get_transforms(image_size=DEFAULT_IMAGE_SIZE, is_training=True):
         ])
 
 
-def dataset_get(root_dir, image_size=DEFAULT_IMAGE_SIZE, is_training=True):
-    transform = get_transforms(image_size, is_training)
-    dataset = CrackDataset(root_dir, transform=transform)
-    return dataset
+def dataloader_get(root_dir, batch_size=ENTRY_BATCH_SIZE, image_size=ENTRY_IMAGE_SIZE, is_training=True, num_workers=WORKERS):
+    dataset = EntryDataset(
+        root_dir, transform=get_transforms(image_size, is_training))
 
-
-def dataloader_get(root_dir, batch_size=DEFAULT_BATCH_SIZE, image_size=DEFAULT_IMAGE_SIZE, is_training=True, num_workers=WORKERS):
-    dataset = dataset_get(root_dir, image_size, is_training)
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,
@@ -88,19 +105,15 @@ def dataloader_get(root_dir, batch_size=DEFAULT_BATCH_SIZE, image_size=DEFAULT_I
     return dataloader
 
 
-def dataloader_init(batch_size: int = DEFAULT_BATCH_SIZE) -> tuple[DataLoader, DataLoader]:
-    # Using global TRAIN_DIR and TEST_DIR from hparams
+def dataloader_init(batch_size: int = ENTRY_BATCH_SIZE) -> tuple[DataLoader, DataLoader, DataLoader]:
     train_dl = dataloader_get(
         TRAIN_DIR, batch_size=batch_size, is_training=True)
-    valid_dl = dataloader_get(
+
+    # Validation set usually doesn't need shuffling, but can be helpful
+    val_dl = dataloader_get(
+        VAL_DIR, batch_size=batch_size, is_training=False)
+
+    test_dl = dataloader_get(
         TEST_DIR, batch_size=batch_size, is_training=False)
 
-    return train_dl, valid_dl
-
-
-def main():
-    print("nothing to do")
-
-
-if __name__ == "__main__":
-    main()
+    return train_dl, val_dl, test_dl

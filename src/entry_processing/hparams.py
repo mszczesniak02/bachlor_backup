@@ -2,8 +2,9 @@ ON_COLAB = False
 
 if ON_COLAB:
     DEVICE = "cuda"
-    TRAIN_DIR = "/content/datasets/tinyimage/train_img/"
-    TEST_DIR = "/content/datasets/tinyimage/test_img/"
+    TRAIN_DIR = "/content/datasets/entry_dataset/train/"
+    TEST_DIR = "/content/datasets/entry_dataset/test/"
+    VAL_DIR = "/content/datasets/entry_dataset/val/"
 
     MODEL_DIR = "/content/models/entry_classificator/"
     LOG_DIR = "/content/models_log/entry_classificator/"
@@ -11,8 +12,9 @@ if ON_COLAB:
 
 else:
     DEVICE = "cuda"
-    TRAIN_DIR = "../../../datasets/tinyimage/train_img/"
-    TEST_DIR = "../../../datasets/tinyimage/test_img/"
+    TRAIN_DIR = "../../../datasets/entry_dataset/train/"
+    TEST_DIR = "../../../datasets/entry_dataset/test/"
+    VAL_DIR = "../../../datasets/entry_dataset/val/"
 
     MODEL_DIR = "../../models/entry_classificator/"
     LOG_DIR = "../../../models_log/entry_classificator/"
@@ -21,14 +23,13 @@ else:
 
 SEED = 42
 # Hyperparameters
-BATCH_SIZE = 16
-LEARNING_RATE = 0.00050000
-EPOCHS = 100
-IMAGE_SIZE = 256  # Smaller than 512 for efficiency
-# Size of the bottleneck feature map channels (or flattened vector)
-LATENT_DIM = 64
+ENTRY_BATCH_SIZE = 32
+ENTRY_LEARNING_RATE = 1e-4
+ENTRY_EPOCHS = 50
+ENTRY_IMAGE_SIZE = 256
+NUM_CLASSES = 2
 
 # Training
-PATIENCE = 15
-SCHEDULER_PATIENCE = 5
-WEIGHT_DECAY = 1e-5
+ENTRY_PATIENCE = 10
+ENTRY_SCHEDULER_PATIENCE = 3
+ENTRY_WEIGHT_DECAY = 1e-4

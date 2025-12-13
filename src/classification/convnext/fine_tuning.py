@@ -5,6 +5,7 @@ from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
 from tqdm.auto import tqdm
 import torch
+from torch.amp import autocast, GradScaler
 import torch.nn as nn
 import numpy as np
 import seaborn as sns
@@ -76,7 +77,7 @@ def calculate_metrics(all_labels, all_preds, num_classes=5):
     }
 
 
-def train_epoch(model, loader, criterion, optimizer, device, writer, epoch, step):
+def train_epoch(model, loader, criterion, optimizer, device, writer, epoch, step, scaler):
     model.train()
     running_loss = 0.0
     all_preds = []
@@ -87,13 +88,17 @@ def train_epoch(model, loader, criterion, optimizer, device, writer, epoch, step
         images, labels = images.to(device), labels.to(device)
 
         optimizer.zero_grad()
-        outputs = model(images)
-        loss = criterion(outputs, labels)
-        loss.backward()
+        with autocast('cuda'):
+            outputs = model(images)
+            loss = criterion(outputs, labels)
 
+        scaler.scale(loss).backward()
+
+        scaler.unscale_(optimizer)
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
 
-        optimizer.step()
+        scaler.step(optimizer)
+        scaler.update()
 
         running_loss += loss.item()
         _, predicted = outputs.max(1)
@@ -125,8 +130,10 @@ def validate(model, loader, criterion, device):
     with torch.no_grad():
         for images, labels in loop:
             images, labels = images.to(device), labels.to(device)
-            outputs = model(images)
-            loss = criterion(outputs, labels)
+
+            with autocast('cuda'):
+                outputs = model(images)
+                loss = criterion(outputs, labels)
 
             running_loss += loss.item()
             _, predicted = outputs.max(1)
@@ -168,12 +175,14 @@ def tune_single_model(bsize, lr, epochs, global_pbar, device=DEVICE):
     patience_counter = 0
     step = 0
 
+    scaler = GradScaler('cuda')
+
     for epoch in range(epochs):
         global_pbar.set_description(
             f"Run: {run_name} | Epoch {epoch+1}/{epochs} | Best F1: {best_f1:.4f}")
 
         train_loss, train_metrics, step, train_labels, train_preds = train_epoch(
-            model, train_loader, criterion, optimizer, device, writer, epoch, step
+            model, train_loader, criterion, optimizer, device, writer, epoch, step, scaler
         )
 
         val_loss, val_metrics, val_labels, val_preds = validate(

@@ -5,6 +5,7 @@ from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
 from tqdm.auto import tqdm
 import torch
+from torch.amp import autocast, GradScaler
 import numpy as np
 
 # -------------------------importing common and utils -----------------------------
@@ -89,7 +90,7 @@ def calculate_metrics(predictions, targets, threshold=0.5):
     }
 
 
-def train_epoch(model, train_loader, criterion, optimizer, device):
+def train_epoch(model, train_loader, criterion, optimizer, device, scaler):
 
     model.train()
     running_loss = .0
@@ -102,13 +103,17 @@ def train_epoch(model, train_loader, criterion, optimizer, device):
     for batch_idx, (images, masks) in enumerate(loop):
         images = images.to(device)
         masks = masks.to(device)
-        # Forward pass
-        predictions = model(images)
-        loss = criterion(predictions, masks)
+
+        with autocast('cuda'):
+            # Forward pass
+            predictions = model(images)
+            loss = criterion(predictions, masks)
+
         # Backward pass
         optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
 
         running_loss += loss.item()
 
@@ -146,8 +151,9 @@ def validate(model, val_loader, criterion, device):
             images = images.to(device)
             masks = masks.to(device)
 
-            predictions = model(images)
-            loss = criterion(predictions, masks)
+            with autocast('cuda'):
+                predictions = model(images)
+                loss = criterion(predictions, masks)
 
             running_loss += loss.item()
 
@@ -204,13 +210,15 @@ def tune_single_model(bsize, lr, epochs, global_pbar, device=DEVICE):
     best_epoch = 0
     patience_counter = 0
 
+    scaler = GradScaler('cuda')
+
     # No internal tqdm for epochs, we update global_pbar
     for epoch in range(epochs):
         # Update global description
         global_pbar.set_description(f"Run: {run_name} | Epoch {epoch+1}/{epochs} | Best IoU: {best_val_iou:.4f}")
 
         train_metrics = train_epoch(
-            model, train_dl, criterion, optimizer, device)
+            model, train_dl, criterion, optimizer, device, scaler)
         val_metrics = validate(model, val_dl, criterion, device)
 
         current_lr = optimizer.param_groups[0]['lr']

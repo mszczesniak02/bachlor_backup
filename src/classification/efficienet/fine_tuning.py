@@ -16,6 +16,7 @@ from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import torch
+from torch.amp import autocast, GradScaler
 import torch.nn as nn
 import numpy as np
 import seaborn as sns
@@ -80,7 +81,7 @@ def calculate_metrics(all_labels, all_preds, num_classes=5):
     }
 
 
-def train_epoch(model, loader, criterion, optimizer, device, writer, epoch, global_step):
+def train_epoch(model, loader, criterion, optimizer, device, writer, epoch, global_step, scaler):
     model.train()
     running_loss = 0.0
     all_preds = []
@@ -91,13 +92,17 @@ def train_epoch(model, loader, criterion, optimizer, device, writer, epoch, glob
         images, labels = images.to(device), labels.to(device)
 
         optimizer.zero_grad()
-        outputs = model(images)
-        loss = criterion(outputs, labels)
-        loss.backward()
+        with autocast('cuda'):
+            outputs = model(images)
+            loss = criterion(outputs, labels)
 
+        scaler.scale(loss).backward()
+
+        scaler.unscale_(optimizer)
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
 
-        optimizer.step()
+        scaler.step(optimizer)
+        scaler.update()
 
         running_loss += loss.item()
         _, predicted = outputs.max(1)
@@ -130,8 +135,10 @@ def validate_epoch(model, loader, criterion, device):
     with torch.no_grad():
         for images, labels in loop:
             images, labels = images.to(device), labels.to(device)
-            outputs = model(images)
-            loss = criterion(outputs, labels)
+
+            with autocast('cuda'):
+                outputs = model(images)
+                loss = criterion(outputs, labels)
 
             running_loss += loss.item()
             _, predicted = outputs.max(1)
@@ -186,6 +193,8 @@ def run_tuning(batch_sizes, learning_rates):
             optimizer = torch.optim.AdamW(
                 model.parameters(), lr=lr, weight_decay=1e-4)
 
+            scaler = GradScaler('cuda')
+
             run_train_losses = []
             run_train_accs = []
             run_train_f1s = []
@@ -200,7 +209,7 @@ def run_tuning(batch_sizes, learning_rates):
 
             for epoch in epoch_pbar:
                 train_loss, train_metrics, global_step, train_labels, train_preds = train_epoch(
-                    model, train_loader, criterion, optimizer, device, writer, epoch, global_step
+                    model, train_loader, criterion, optimizer, device, writer, epoch, global_step, scaler
                 )
 
                 val_loss, val_metrics, val_labels, val_preds = validate_epoch(
