@@ -6,7 +6,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm.auto import tqdm
 import torch
 from torch.cuda.amp import autocast, GradScaler
-from torchmetrics.functional.classification import binary_jaccard_index, dice
+from torchmetrics.functional import jaccard_index, dice
 # -------------------------importing common and utils -----------------------------
 
 original_sys_path = sys.path.copy()
@@ -153,7 +153,8 @@ def validate(model, val_loader, criterion, device):
             # Przekształcenie predykcji na maski binarne
             pred_masks = torch.sigmoid(predictions) > 0.5
 
-            iou_score += iou(pred_masks, masks.bool()).item()
+            iou_score += jaccard_index(pred_masks,
+                                       masks.bool(), task='binary').item()
             dice_score += dice(pred_masks, masks.bool()).item()
 
     avg_loss = running_loss / len(val_loader)
