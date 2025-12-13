@@ -22,7 +22,7 @@ import numpy as np
 
 def main():
 
-    model = model_load("unet")
+    model = model_load("segformer", filepath="../../../../models/segformer/.pth")
     model.eval()
 
     dataset = dataset_get(img_path="../../../../datasets/multi/test_img/",

@@ -5,6 +5,8 @@ from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
 from tqdm.auto import tqdm
 import torch
+from torch.cuda.amp import autocast, GradScaler
+from torchmetrics.functional.classification import binary_jaccard_index, dice
 # -------------------------importing common and utils -----------------------------
 
 original_sys_path = sys.path.copy()
@@ -84,7 +86,7 @@ def calculate_metrics(predictions, targets, threshold=0.5):
     }
 
 
-def train_epoch(model, train_loader, criterion, optimizer, device):
+def train_epoch(model, train_loader, criterion, optimizer, device, scaler):
 
     model.train()
     running_loss = .0
@@ -97,13 +99,17 @@ def train_epoch(model, train_loader, criterion, optimizer, device):
     for batch_idx, (images, masks) in enumerate(loop):
         images = images.to(device)
         masks = masks.to(device)
-        # Forward pass
-        predictions = model(images)
-        loss = criterion(predictions, masks)
+
+        with autocast():
+            # Forward pass
+            predictions = model(images)
+            loss = criterion(predictions, masks)
+
         # Backward pass
         optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
 
         running_loss += loss.item()
 
@@ -131,37 +137,30 @@ def train_epoch(model, train_loader, criterion, optimizer, device):
 def validate(model, val_loader, criterion, device):
     model.eval()
     running_loss = 0.0
-    metrics = {
-        'iou': [], 'dice': [], 'recall': [],
-        'precision': [], 'f1_score': []
-    }
+    iou_score = 0.0
+    dice_score = 0.0
     with torch.no_grad():
-        for images, masks in tqdm(val_loader, desc="Validation", leave=False):
-
+        for images, masks in tqdm(val_loader, desc="Validation"):
             images = images.to(device)
             masks = masks.to(device)
 
-            predictions = model(images)
-            loss = criterion(predictions, masks)
+            with autocast():
+                predictions = model(images)
+                loss = criterion(predictions, masks)
 
             running_loss += loss.item()
 
-            predictions_sigmoid = torch.sigmoid(predictions)
-            batch_metrics = calculate_metrics(predictions_sigmoid, masks)
+            # Przekształcenie predykcji na maski binarne
+            pred_masks = torch.sigmoid(predictions) > 0.5
 
-            for key in metrics.keys():
-                value = batch_metrics[key]
+            iou_score += iou(pred_masks, masks.bool()).item()
+            dice_score += dice(pred_masks, masks.bool()).item()
 
-                if isinstance(value, torch.Tensor):
-                    value = value.cpu().item()
+    avg_loss = running_loss / len(val_loader)
+    avg_iou = iou_score / len(val_loader)
+    avg_dice = dice_score / len(val_loader)
 
-                metrics[key].append(batch_metrics[key])
-
-        avg_loss = running_loss / len(val_loader)
-        avg_metrics = {k: np.mean(v) for k, v in metrics.items()}
-        avg_metrics['loss'] = avg_loss
-
-        return avg_metrics
+    return avg_loss, avg_iou, avg_dice
 
 
 def train_model(writer, epochs: int = UNET_EPOCHS, batch_size: int = UNET_BATCH_SIZE, lr: float = UNET_LEARNING_RATE, device=DEVICE):

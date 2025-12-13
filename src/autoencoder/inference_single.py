@@ -33,7 +33,8 @@ sys.path = original_sys_path
 
 def load_model(model_path):
     model = model_init()
-    model.load_state_dict(torch.load(model_path, map_location=DEVICE))
+    checkpoint = torch.load(model_path, map_location=DEVICE)
+    model.load_state_dict(checkpoint['model_state_dict'])
     model.to(DEVICE)
     model.eval()
     return model
@@ -106,7 +107,7 @@ def visualize_reconstruction(original, reconstructed, diff_map, loss, save_path=
 
 
 def main():
-    model_path = f"{MODEL_DIR}/autoencoder_best.pth"
+    model_path = f"{MODEL_DIR}/model.pth"
 
     if not os.path.exists(model_path):
         print(f"Model not found at {model_path}. Please train the model first.")
@@ -135,6 +136,8 @@ def main():
 
     # Pick a random image
     img_path = random.choice(image_files)
+    img_path = "dog.jpg"
+
     print(f"Processing image: {img_path}")
 
     # Predict

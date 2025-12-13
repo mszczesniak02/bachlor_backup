@@ -7,3 +7,4 @@ src/runs
 models/
 models_log/
 __pycache__
+all_zipers/

@@ -14,7 +14,7 @@ else:
     TRAIN_DIR = "../../../datasets/multi/train_img/"
     TEST_DIR = "../../../datasets/multi/test_img/"
 
-    MODEL_DIR = "../../../models/autoencoder/"
+    MODEL_DIR = "../../models/autoencoder/"
     LOG_DIR = "../../../models_log/autoencoder/"
     WORKERS = 4
 
