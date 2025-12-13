@@ -159,7 +159,8 @@ def train_model():
     start_epoch = 0
     if RESUME_CHECKPOINT is not None and os.path.isfile(RESUME_CHECKPOINT):
         print(f"Loading checkpoint from {RESUME_CHECKPOINT}")
-        checkpoint = torch.load(RESUME_CHECKPOINT, map_location=device)
+        checkpoint = torch.load(
+            RESUME_CHECKPOINT, map_location=device, weights_only=False)
         model.load_state_dict(checkpoint['model_state_dict'])
         if 'optimizer_state_dict' in checkpoint:
             optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
@@ -239,7 +240,7 @@ def train_model():
 
     # Optional: Run on Test Set
     print("\nRunning on Test Set with Best Model...")
-    checkpoint = torch.load(f"{MODEL_DIR}/best_model.pth")
+    checkpoint = torch.load(f"{MODEL_DIR}/best_model.pth", weights_only=False)
     model.load_state_dict(checkpoint['model_state_dict'])
     test_loss, test_metrics, _, _ = validate(model, test_dl, criterion, device)
     print(f"Test Accuracy: {test_metrics['accuracy']*100:.2f}%")

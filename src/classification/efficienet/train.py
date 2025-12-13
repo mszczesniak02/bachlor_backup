@@ -193,7 +193,8 @@ def train_model(writer, epochs=ENET_EPOCHS, batch_size=ENET_BATCH_SIZE, lr=ENET_
     start_epoch = 0
     if RESUME_CHECKPOINT is not None and os.path.isfile(RESUME_CHECKPOINT):
         print(f"Loading checkpoint from {RESUME_CHECKPOINT}")
-        checkpoint = torch.load(RESUME_CHECKPOINT, map_location=device)
+        checkpoint = torch.load(
+            RESUME_CHECKPOINT, map_location=device, weights_only=False)
         model.load_state_dict(checkpoint['model_state_dict'])
         if 'optimizer_state_dict' in checkpoint:
             optimizer.load_state_dict(checkpoint['optimizer_state_dict'])

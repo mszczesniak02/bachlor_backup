@@ -33,7 +33,7 @@ sys.path = original_sys_path
 
 def load_model(model_path):
     model = model_init()
-    checkpoint = torch.load(model_path, map_location=DEVICE)
+    checkpoint = torch.load(model_path, map_location=DEVICE, weights_only=False)
     model.load_state_dict(checkpoint['model_state_dict'])
     model.to(DEVICE)
     model.eval()

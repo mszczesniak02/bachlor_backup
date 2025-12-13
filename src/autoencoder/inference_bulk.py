@@ -33,7 +33,7 @@ sys.path = original_sys_path
 
 def load_model(model_path):
     model = model_init()
-    model.load_state_dict(torch.load(model_path, map_location=DEVICE))
+    model.load_state_dict(torch.load(model_path, map_location=DEVICE, weights_only=False))
     model.to(DEVICE)
     model.eval()
     return model

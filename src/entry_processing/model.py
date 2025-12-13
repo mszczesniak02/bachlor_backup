@@ -64,7 +64,8 @@ def model_load(filepath=None, device=DEVICE):
         filepath = f"{MODEL_DIR}/best_model.pth"
 
     if os.path.isfile(filepath):
-        checkpoint = torch.load(filepath, map_location=device)
+        checkpoint = torch.load(
+            filepath, map_location=device, weights_only=False)
         model.load_state_dict(checkpoint['model_state_dict'])
     else:
         print(

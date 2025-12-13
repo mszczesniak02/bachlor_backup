@@ -35,7 +35,7 @@ def model_init(model_name: str):
 
 def model_load(model_name: str, filepath=MODEL_PATH, device=DEVICE):
     model = model_init(model_name)
-    checkpoint = torch.load(filepath, map_location=device)
+    checkpoint = torch.load(filepath, map_location=device, weights_only=False)
 
     if 'model_state_dict' in checkpoint:
         model.load_state_dict(checkpoint['model_state_dict'])

@@ -247,7 +247,8 @@ def train_model(writer, epochs: int = SEGFORMER_EPOCHS, batch_size: int = SEGFOR
     # Resume logic
     if RESUME_CHECKPOINT is not None and os.path.isfile(RESUME_CHECKPOINT):
         print(f"Loading checkpoint from {RESUME_CHECKPOINT}")
-        checkpoint = torch.load(RESUME_CHECKPOINT, map_location=device)
+        checkpoint = torch.load(
+            RESUME_CHECKPOINT, map_location=device, weights_only=False)
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         start_epoch = checkpoint['epoch'] + 1
