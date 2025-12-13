@@ -5,7 +5,7 @@ from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
 from tqdm.auto import tqdm
 import torch
-from torch.cuda.amp import autocast, GradScaler
+from torch.amp import autocast, GradScaler
 # -------------------------importing common and utils -----------------------------
 
 original_sys_path = sys.path.copy()
@@ -121,7 +121,7 @@ def train_epoch(model, train_loader, criterion, optimizer, device, scaler):
         images = images.to(device)
         masks = masks.to(device)
 
-        with autocast():
+        with autocast('cuda'):
             # Forward pass
             predictions = model(images)
             loss = criterion(predictions, masks)
@@ -168,7 +168,7 @@ def validate(model, val_loader, criterion, device):
             images = images.to(device)
             masks = masks.to(device)
 
-            with autocast():
+            with autocast('cuda'):
                 predictions = model(images)
                 loss = criterion(predictions, masks)
 
@@ -222,7 +222,7 @@ def train_model(writer, epochs: int = UNET_EPOCHS, batch_size: int = UNET_BATCH_
     )
     print(f"Scheduler initialized: ReduceLROnPlateau")
 
-    scaler = GradScaler()
+    scaler = GradScaler('cuda')
 
     # params for inter-epoch model accuracy checking
     best_val_iou = 0.0
