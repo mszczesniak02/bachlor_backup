@@ -205,7 +205,7 @@ def validate(model, val_loader, criterion, device):
     return avg_metrics
 
 
-def train_model(writer, epochs: int = SEGFORMER_EPOCHS, batch_size: int = SEGFORMER_BATCH_SIZE, lr: float = SEGFORMER_LEARNING_RATE, device=DEVICE):
+def train_model(writer, epochs: int = SEGFORMER_EPOCHS, batch_size: int = SEGFORMER_BATCH_SIZE, lr: float = SEGFORMER_LEARNING_RATE, device=DEVICE, loss_type="DiceBCE"):
     """
     Main training loop
     """
@@ -217,8 +217,12 @@ def train_model(writer, epochs: int = SEGFORMER_EPOCHS, batch_size: int = SEGFOR
 
     model = model_init(model_name="segformer").to(device)
 
-    criterion = DiceBCELoss()
-    print("Criterion initialized: DiceBCELoss")
+    if loss_type == "Tversky":
+        criterion = TverskyLoss(alpha=0.3, beta=0.7)
+        print("Criterion initialized: TverskyLoss (alpha=0.3, beta=0.7)")
+    else:
+        criterion = DiceBCELoss()
+        print("Criterion initialized: DiceBCELoss")
 
     optimizer = torch.optim.AdamW(
         model.parameters(),
@@ -251,6 +255,14 @@ def train_model(writer, epochs: int = SEGFORMER_EPOCHS, batch_size: int = SEGFOR
             RESUME_CHECKPOINT, map_location=device, weights_only=False)
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+        if 'scheduler_state_dict' in checkpoint:
+            scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+
+        if 'best_val_iou' in checkpoint:
+            best_val_iou = checkpoint['best_val_iou']
+            print(f"Resuming with Best IoU: {best_val_iou:.4f}")
+
         start_epoch = checkpoint['epoch'] + 1
 
     writer.add_text("Hparams", f"""
@@ -328,6 +340,7 @@ def train_model(writer, epochs: int = SEGFORMER_EPOCHS, batch_size: int = SEGFOR
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
+                'scheduler_state_dict': scheduler.state_dict(),
                 'best_val_iou': best_val_iou,
                 'val_metrics': val_metrics,
                 'train_metrics': train_metrics,
@@ -359,7 +372,7 @@ def main() -> int:
     seed_everything(SEED)
     print(f"Seeding with {SEED}")
 
-    model = train_model(writer=writer)
+    model = train_model(writer=writer, loss_type="Tversky")
 
 
 if __name__ == "__main__":

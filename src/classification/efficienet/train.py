@@ -155,7 +155,7 @@ def validate(model, loader, criterion, device):
 
 
 def train_model(writer, epochs=ENET_EPOCHS, batch_size=ENET_BATCH_SIZE, lr=ENET_LEARNING_RATE, device=DEVICE):
-    class_names = ["0_brak", "1_wlosowe", "2_male", "3_srednie", "4_duze"]
+    class_names = ["0_brak", "1_wlosowe", "2_male", "3_srednie"]
 
     train_loader, val_loader = dataloader_init(batch_size=batch_size)
     print("Dataloader initialized.")

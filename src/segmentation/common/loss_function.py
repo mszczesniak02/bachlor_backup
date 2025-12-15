@@ -112,6 +112,34 @@ class DiceFocalLoss(torch.nn.Module):
         return the_loss
 
 
+class TverskyLoss(torch.nn.Module):
+    def __init__(self, alpha=0.3, beta=0.7, smooth=1):
+        super(TverskyLoss, self).__init__()
+        self.alpha = alpha
+        self.beta = beta
+        self.smooth = smooth
+
+    def forward(self, inputs, targets):
+        # inputs: logity (bez sigmoidy)
+        # targets: binarne maski
+
+        inputs = torch.sigmoid(inputs)
+
+        # flatten
+        inputs = inputs.view(-1)
+        targets = targets.view(-1)
+
+        # True Positives, False Positives, False Negatives
+        TP = (inputs * targets).sum()
+        FP = ((1 - targets) * inputs).sum()
+        FN = (targets * (1 - inputs)).sum()
+
+        tversky = (TP + self.smooth) / \
+            (TP + self.alpha * FP + self.beta * FN + self.smooth)
+
+        return 1 - tversky
+
+
 def main():
     print("nothing to do.")
 

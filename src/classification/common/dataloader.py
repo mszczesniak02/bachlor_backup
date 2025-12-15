@@ -19,7 +19,7 @@ class CrackDataset(Dataset):
 
         self.samples = []
         self.class_names = ["0_brak", "1_wlosowe",
-                            "2_male", "3_srednie", "4_duze"]
+                            "2_male", "3_srednie"]
 
         for class_idx, class_name in enumerate(self.class_names):
             class_dir = self.root_dir / class_name / "masks"
@@ -50,7 +50,7 @@ class CrackDataset(Dataset):
         return image, label
 
     def get_class_distribution(self):
-        distribution = {i: 0 for i in range(5)}
+        distribution = {i: 0 for i in range(4)}
         for _, label in self.samples:
             distribution[label] += 1
         return distribution

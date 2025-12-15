@@ -155,8 +155,8 @@ def validate(model, loader, criterion, device):
     return epoch_loss, metrics, all_labels, all_preds
 
 
-def train_model(writer, epochs=CONV_EPOCHS, batch_size=CONV_BATCH_SIZE, lr=CONV_LEARNING_RATE, device=DEVICE):
-    class_names = ["0_brak", "1_wlosowe", "2_male", "3_srednie", "4_duze"]
+def train_model(writer, epochs=CONVNEXT_EPOCHS, batch_size=CONVNEXT_BATCH_SIZE, lr=CONVNEXT_LEARNING_RATE, device=DEVICE):
+    class_names = ["0_brak", "1_wlosowe", "2_male", "3_srednie"]
 
     train_loader, val_loader = dataloader_init(batch_size=batch_size)
     print("Dataloader initialized.")
@@ -166,19 +166,19 @@ def train_model(writer, epochs=CONV_EPOCHS, batch_size=CONV_BATCH_SIZE, lr=CONV_
 
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.AdamW(
-        model.parameters(), lr=lr, weight_decay=CONV_WEIGHT_DECAY)
+        model.parameters(), lr=lr, weight_decay=CONVNEXT_WEIGHT_DECAY)
 
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='max', factor=0.5, patience=CONV_SCHEDULER_PATIENCE)
+        optimizer, mode='max', factor=0.5, patience=CONVNEXT_SCHEDULER_PATIENCE)
 
     hparams = {
         'learning_rate': lr,
         'batch_size': batch_size,
-        'image_size': CONV_IMAGE_SIZE,
-        'weight_decay': CONV_WEIGHT_DECAY,
+        'image_size': CONVNEXT_IMAGE_SIZE,
+        'weight_decay': CONVNEXT_WEIGHT_DECAY,
         'epochs': epochs,
         'patience': PATIENCE,
-        'scheduler_patience': CONV_SCHEDULER_PATIENCE,
+        'scheduler_patience': CONVNEXT_SCHEDULER_PATIENCE,
         'device': str(device),
         'model': 'ConvNeXt-Tiny',
         'optimizer': 'AdamW',
@@ -254,7 +254,7 @@ def train_model(writer, epochs=CONV_EPOCHS, batch_size=CONV_BATCH_SIZE, lr=CONV_
 
         if val_metrics['f1_score'] > best_f1:
             best_f1 = val_metrics['f1_score']
-            best_model_path = f"{CONV_MODEL_TRAIN_DIR}/model_f1_{best_f1:.4f}_epoch{epoch}.pth"
+            best_model_path = f"{CONVNEXT_MODEL_TRAIN_DIR}/model_f1_{best_f1:.4f}_epoch{epoch}.pth"
             os.makedirs(os.path.dirname(best_model_path) if os.path.dirname(
                 best_model_path) else '.', exist_ok=True)
             model_save(model, best_model_path, epoch, optimizer, val_loss)
@@ -290,7 +290,7 @@ def train_model(writer, epochs=CONV_EPOCHS, batch_size=CONV_BATCH_SIZE, lr=CONV_
 
 def main():
     timestamp = datetime.now().strftime('%Y%m%d_%H%M')
-    log_dir = f"{CONV_MODEL_TRAIN_LOG_DIR}/{timestamp}/model_batch_{CONV_BATCH_SIZE}_lr{CONV_LEARNING_RATE:.0e}"
+    log_dir = f"{CONVNEXT_MODEL_TRAIN_LOG_DIR}/{timestamp}/model_batch_{CONVNEXT_BATCH_SIZE}_lr{CONVNEXT_LEARNING_RATE:.0e}"
     writer = SummaryWriter(log_dir)
 
     seed_everything(SEED)
