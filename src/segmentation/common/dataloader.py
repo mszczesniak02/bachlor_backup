@@ -15,80 +15,85 @@ from segmentation.common.hparams import *
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
-transform_val = A.Compose(
-    [A.Resize(height=512, width=512)]
-)
+transform_val = A.Compose([
+    A.Resize(height=512, width=512),
+    # Normalizacja statystykami ImageNet - WYMAGANE dla SegFormera/U-Netu
+    A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+    ToTensorV2(),
+])
 
-# augmentation
+# Trening: Resize + Augmentacje + Normalizacja + ToTensor
 transform_train = A.Compose([
-    A.Resize(512, 512),
+    A.Resize(height=512, width=512),
+
+    # Geometria
     A.HorizontalFlip(p=0.5),
-    A.VerticalFlip(p=0.3),
-    A.Rotate(limit=10, p=0.3),
+    A.VerticalFlip(p=0.5),
+    A.Rotate(limit=20, p=0.5),
+    A.RandomRotate90(p=0.5),
+
+    # Kolory i kontrast (ważne dla betonu)
     A.RandomBrightnessContrast(
-        brightness_limit=0.1, contrast_limit=0.1, p=0.3),
+        brightness_limit=0.2, contrast_limit=0.2, p=0.5),
+
+    # Normalizacja i konwersja do Tensora
+    A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+    ToTensorV2(),
 ])
 
 
 class CrackDataset(Dataset):
     def __init__(self, img_dir, mask_dir, transform=None):
-
         self.img_dir = img_dir
         self.mask_dir = mask_dir
         self.transform = transform
-        self.images = sorted([os.path.join(img_dir, file)
-                             for file in os.listdir(img_dir)])
-        self.masks = sorted([os.path.join(mask_dir, file)
-                            for file in os.listdir(mask_dir)])
+
+        # Filtrujemy tylko pliki obrazów i sortujemy, żeby pary się zgadzały
+        self.images = sorted([os.path.join(img_dir, f) for f in os.listdir(
+            img_dir) if f.endswith(('.jpg', '.png', '.jpeg', '.bmp'))])
+        self.masks = sorted([os.path.join(mask_dir, f) for f in os.listdir(
+            mask_dir) if f.endswith(('.jpg', '.png', '.jpeg', '.bmp'))])
 
     def __len__(self):
         return len(self.images)
 
     def __getitem__(self, index):
+        # 1. Wczytanie obrazu (OpenCV)
+        # CV2 wczytuje jako BGR, konwertujemy na RGB
+        img_path = self.images[index]
+        image = cv2.imread(img_path)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-        # When getting images from dirs, images differ in sizes and resolution.
-        # To combat that issue, rescaling to 512x512px is being done for both masks and images.
+        # 2. Wczytanie maski (OpenCV)
+        # Wczytujemy w skali szarości (0-255)
+        mask_path = self.masks[index]
+        mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
 
-        with Image.open(self.images[index]) as img:
-            img = img.convert('RGB')
-            # scale all images to 512x512 format
-            img = img.resize((512, 512), Image.BILINEAR)
-            np_image = np.array(img)
+        # 3. Binaryzacja (Twoja logika - bardzo dobra dla DeepCrack)
+        # DeepCrack ma wartości 0 i 255. Zamieniamy na 0 i 1.
+        mask = (mask > 127).astype(np.uint8)
 
-        with Image.open(self.masks[index]) as mask:
-            mask = mask.convert('L')
-            mask = mask.resize((512, 512), Image.NEAREST)
-            np_mask = np.array(mask)
+        # 4. Augmentacje (Albumentations)
+        if self.transform:
+            augmented = self.transform(image=image, mask=mask)
+            image = augmented['image']
+            mask = augmented['mask']
 
-        # forcing binary map if map's vals are not 1' and 0's, but 255's and 0's.
-        np_mask = (np_mask > 127).astype(np.uint8)
+        # 'image' jest już Tensorem dzięki ToTensorV2 i jest znormalizowany (A.Normalize)
 
-        if self.transform:  # if using transforms
-            t = self.transform(image=np_image, mask=np_mask)
-            np_image = t["image"]
-            np_mask = t["mask"]
+        # 'mask' wychodzi z Albumentations jako Tensor [H, W].
+        # PyTorch oczekuje [Channels, H, W], więc dodajemy wymiar (unsqueeze).
+        mask = mask.float().unsqueeze(0)
 
-        # conversion from numpy array convention to tensor via permute,
-        #     then normalizing to [0,1] range, same for mask, only using binary data
-        tensor_image = torch.from_numpy(
-            np_image).permute(2, 0, 1).float() / 255.0
-        tensor_mask = torch.from_numpy(np_mask).unsqueeze(0).float()
-
-        return tensor_image, tensor_mask
+        return image, mask
 
 
 def dataset_get(img_path=IMG_TRAIN_PATH, mask_path=MASK_TRAIN_PATH, transform=None):
     """
-    Return train dataset (if no args passed)
+    Return train dataset
     """
-
     dataset = CrackDataset(img_path, mask_path, transform=transform)
     return dataset
-
-
-def dataset_split(dataset: CrackDataset, test_factor: float, val_factor: float) -> list:
-    """Split exising dataset given percentages as [0,1] floats, return list of  """
-    return random_split(dataset, [test_factor, val_factor])
 
 
 def dataloader_get(dataset, is_training=True, bsize=DEFAULT_BATCH_SIZE):
@@ -102,11 +107,13 @@ def dataloader_get(dataset, is_training=True, bsize=DEFAULT_BATCH_SIZE):
 
 def dataloader_init(batch_size: int = DEFAULT_BATCH_SIZE) -> tuple[DataLoader, DataLoader]:
     """
-        Get dataloader bypassing creating datasets and splitting, main purpose being less code in training function.
+    Get dataloader setup for DeepCrack (train/test split based on folders).
     """
+    # Zbiór treningowy z augmentacją
     train_ds = dataset_get(img_path=IMG_TRAIN_PATH,
                            mask_path=MASK_TRAIN_PATH, transform=transform_train)
 
+    # Zbiór walidacyjny BEZ augmentacji (tylko resize/normalize)
     valid_ds = dataset_get(img_path=IMG_TEST_PATH,
                            mask_path=MASK_TEST_PATH, transform=transform_val)
 
