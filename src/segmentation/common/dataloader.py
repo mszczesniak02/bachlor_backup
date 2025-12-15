@@ -136,11 +136,11 @@ def dataloader_init(batch_size: int = DEFAULT_BATCH_SIZE) -> tuple[DataLoader, D
     """
     # Zbiór treningowy z augmentacją
     train_ds = dataset_get(img_path=IMG_TRAIN_PATH,
-                           mask_path=MASK_TRAIN_PATH, transform=transform_train)
+                           mask_path=MASK_TRAIN_PATH, transform=train_transform)
 
     # Zbiór walidacyjny BEZ augmentacji (tylko resize/normalize)
     valid_ds = dataset_get(img_path=IMG_TEST_PATH,
-                           mask_path=MASK_TEST_PATH, transform=transform_val)
+                           mask_path=MASK_TEST_PATH, transform=val_transform)
 
     train_dl = dataloader_get(train_ds, is_training=True, bsize=batch_size)
     valid_dl = dataloader_get(valid_ds, is_training=False, bsize=batch_size)
