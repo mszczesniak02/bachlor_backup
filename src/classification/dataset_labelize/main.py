@@ -497,10 +497,10 @@ def augment_single_image(args):
         return False
 
 
-def augment_unbalanced_dataset(dataset_dir, augmentation_factor=3):
+def augment_unbalanced_dataset(dataset_dir, augmentation_factor=None):
     """
-    Augmentuje MASKI - tworzy augmentation_factor więcej wersji każdego obrazu
-    augmentation_factor=3 oznacza 3x więcej danych
+    Augmentuje MASKI - wyrównuje kategorie do maxcount
+    Jeśli augmentation_factor podany, multiplies by that factor (dla dodatkowej augmentacji)
     """
     from PIL import ImageOps, ImageEnhance
     from multiprocessing import Pool, cpu_count
@@ -511,26 +511,49 @@ def augment_unbalanced_dataset(dataset_dir, augmentation_factor=3):
     if not category_dirs:
         return
 
+    # Policz maski w każdej kategorii
+    category_counts = {}
+    for cat_dir in category_dirs:
+        cat_path = os.path.join(dataset_dir, cat_dir)
+        if os.path.exists(cat_path):
+            count = len([f for f in os.listdir(cat_path)
+                        if f.endswith(('.png', '.jpg', '.jpeg')) and '_aug_' not in f])
+            category_counts[cat_dir] = count
+
+    # Docelowa liczba = max kategoria (wyrównaj do największej)
+    max_count = max(category_counts.values()) if category_counts else 1000
+    target_count = max_count
+
+    if augmentation_factor and augmentation_factor > 1:
+        target_count = max_count * augmentation_factor
+
     num_processes = cpu_count()
     all_tasks = []
     global_aug_idx = 0
 
-    # Przygotuj taskami - dla każdego obrazu, robić augmentation_factor wersji
+    # Przygotuj taskami - tyle augmentacji ile potrzeba
     for cat_dir in category_dirs:
         cat_path = os.path.join(dataset_dir, cat_dir)
 
         if not os.path.exists(cat_path):
             continue
 
+        current_count = category_counts.get(cat_dir, 0)
+        needed = target_count - current_count
+
+        if needed <= 0:
+            continue
+
         mask_files = sorted([f for f in os.listdir(cat_path)
                              if f.endswith(('.png', '.jpg', '.jpeg')) and '_aug_' not in f])
 
-        # Dla każdego oryginalnego pliku, utwórz augmentation_factor wersji
-        for original_name in mask_files:
-            for aug_num in range(augmentation_factor):
-                task = (cat_path, original_name, global_aug_idx)
-                all_tasks.append(task)
-                global_aug_idx += 1
+        # Rozprowadź augmentacje równomiernie między istniejące obrazy
+        for aug_idx in range(needed):
+            mask_idx = aug_idx % len(mask_files)
+            original_name = mask_files[mask_idx]
+            task = (cat_path, original_name, global_aug_idx)
+            all_tasks.append(task)
+            global_aug_idx += 1
 
     # Augmentuj z progress bar
     if all_tasks:
