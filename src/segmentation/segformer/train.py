@@ -372,7 +372,7 @@ def main() -> int:
     seed_everything(SEED)
     print(f"Seeding with {SEED}")
 
-    model = train_model(writer=writer, loss_type="uu")
+    model = train_model(writer=writer, loss_type="Tversky")
 
 
 if __name__ == "__main__":

@@ -22,43 +22,27 @@ from PIL import ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 train_transform = A.Compose([
-    # 1. Najpierw ustalamy bazowy rozmiar.
-    #    Dla SegFormera B0/B1 zalecane 256x256 lub 512x512.
     A.Resize(height=256, width=256),
 
-    # 2. ShiftScaleRotate zamiast RandomScale.
-    #    To kluczowa zmiana - skaluje i obraca, ale NIE zmienia wymiarów tensora wyjściowego.
+    # Mniej agresywne skalowanie i obrót (limit 15 stopni zamiast 35)
     A.ShiftScaleRotate(
-        shift_limit=0.0625,
-        scale_limit=0.2,  # Zoom in/out
-        rotate_limit=35,  # Obrót
+        shift_limit=0.05,
+        scale_limit=0.1,
+        rotate_limit=15,
         p=0.5,
-        # Czarne tło przy obrocie (można zmienić na cv2.BORDER_CONSTANT)
         border_mode=0
     ),
 
     A.HorizontalFlip(p=0.5),
     A.VerticalFlip(p=0.5),
 
-    # 3. Zniekształcenia (Grid/Elastic)
-    A.OneOf([
-        A.GridDistortion(num_steps=5, distort_limit=0.3, p=1.0),
-        A.ElasticTransform(alpha=1, sigma=50, alpha_affine=50, p=1.0),
-        A.OpticalDistortion(distort_limit=1, shift_limit=0.5, p=1.0),
-    ], p=0.3),
+    # Tylko jasność i kontrast - bezpieczne dla segmentacji
+    A.RandomBrightnessContrast(
+        brightness_limit=0.2,
+        contrast_limit=0.2,
+        p=0.5
+    ),
 
-    # 4. Kolory i szum
-    A.OneOf([
-        A.GaussNoise(var_limit=(10.0, 50.0), p=1.0),
-        A.GaussianBlur(blur_limit=(3, 7), p=1.0),
-    ], p=0.2),
-
-    A.OneOf([
-        A.RandomBrightnessContrast(p=1.0),
-        A.HueSaturationValue(p=1.0),
-    ], p=0.3),
-
-    # 5. Normalizacja na samym końcu
     A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2(),
 ])
