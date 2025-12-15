@@ -442,7 +442,7 @@ def plot_category_histogram(category_counts, category_names, filename=None, titl
 
 def augment_single_image(args):
     """
-    Augmentuje TYLKO maskę - dla multiprocessing.
+    Augmentuje TYLKO maskę z DUŻĄ augmentacją (+ random crop).
     Zwraca True jeśli sukces, False jeśli błąd.
     """
     from PIL import ImageOps, ImageEnhance
@@ -452,17 +452,40 @@ def augment_single_image(args):
     try:
         original_mask_path = os.path.join(mask_folder, original_name)
         mask = Image.open(original_mask_path).convert('L')
+        mask_width, mask_height = mask.size
+
+        # Random crop (80-100% oryginalnego rozmiaru)
+        if random.random() > 0.3:
+            crop_factor = random.uniform(0.8, 1.0)
+            crop_width = int(mask_width * crop_factor)
+            crop_height = int(mask_height * crop_factor)
+            left = random.randint(0, mask_width - crop_width)
+            top = random.randint(0, mask_height - crop_height)
+            mask = mask.crop((left, top, left + crop_width, top + crop_height))
+            mask = mask.resize((mask_width, mask_height),
+                               Image.Resampling.LANCZOS)
 
         # Kombinuj różne augmentacje losowo
-        if random.random() > 0.3:
+        if random.random() > 0.2:  # 80% szansa
             mask = ImageOps.mirror(mask)
 
-        if random.random() > 0.3:
+        if random.random() > 0.2:
             mask = ImageOps.flip(mask)
 
-        if random.random() > 0.5:
+        if random.random() > 0.4:  # 60% szansa
             angle = random.choice([90, 180, 270])
             mask = mask.rotate(angle, expand=False)
+
+        if random.random() > 0.5:  # 50% szansa - losowe przesunięcie
+            offset_x = random.randint(-10, 10)
+            offset_y = random.randint(-10, 10)
+            if offset_x != 0 or offset_y != 0:
+                mask = ImageOps.expand(mask, (max(0, offset_x), max(0, offset_y),
+                                              max(0, -offset_x), max(0, -offset_y)), fill=0)
+                mask = mask.crop((abs(min(0, offset_x)), abs(min(0, offset_y)),
+                                 mask.width + min(0, offset_x), mask.height + min(0, offset_y)))
+                mask = mask.resize((mask_width, mask_height),
+                                   Image.Resampling.LANCZOS)
 
         # Zapisz augmentowaną maskę
         base_name = original_name.split('.')[0]
@@ -474,9 +497,10 @@ def augment_single_image(args):
         return False
 
 
-def augment_unbalanced_dataset(dataset_dir, target_count=None):
+def augment_unbalanced_dataset(dataset_dir, augmentation_factor=3):
     """
-    Augmentuje TYLKO MASKI do równych porcji
+    Augmentuje MASKI - tworzy augmentation_factor więcej wersji każdego obrazu
+    augmentation_factor=3 oznacza 3x więcej danych
     """
     from PIL import ImageOps, ImageEnhance
     from multiprocessing import Pool, cpu_count
@@ -487,43 +511,26 @@ def augment_unbalanced_dataset(dataset_dir, target_count=None):
     if not category_dirs:
         return
 
-    # Policz maski w każdej kategorii
-    category_counts = {}
-    for cat_dir in category_dirs:
-        cat_path = os.path.join(dataset_dir, cat_dir)
-        if os.path.exists(cat_path):
-            count = len([f for f in os.listdir(cat_path)
-                        if f.endswith(('.png', '.jpg', '.jpeg'))])
-            category_counts[cat_dir] = count
-
-    max_count = max(category_counts.values()) if category_counts else 1000
-    target_count = max_count
     num_processes = cpu_count()
     all_tasks = []
     global_aug_idx = 0
 
-    # Przygotuj taskami
+    # Przygotuj taskami - dla każdego obrazu, robić augmentation_factor wersji
     for cat_dir in category_dirs:
         cat_path = os.path.join(dataset_dir, cat_dir)
 
         if not os.path.exists(cat_path):
             continue
 
-        current_count = category_counts.get(cat_dir, 0)
-        needed = target_count - current_count
+        mask_files = sorted([f for f in os.listdir(cat_path)
+                             if f.endswith(('.png', '.jpg', '.jpeg')) and '_aug_' not in f])
 
-        if needed <= 0:
-            continue
-
-        mask_files = sorted([f for f in os.listdir(
-            cat_path) if f.endswith(('.png', '.jpg', '.jpeg'))])
-
-        for needed_idx in range(needed):
-            mask_idx = needed_idx % len(mask_files)
-            original_name = mask_files[mask_idx]
-            task = (cat_path, original_name, global_aug_idx)
-            all_tasks.append(task)
-            global_aug_idx += 1
+        # Dla każdego oryginalnego pliku, utwórz augmentation_factor wersji
+        for original_name in mask_files:
+            for aug_num in range(augmentation_factor):
+                task = (cat_path, original_name, global_aug_idx)
+                all_tasks.append(task)
+                global_aug_idx += 1
 
     # Augmentuj z progress bar
     if all_tasks:
@@ -536,17 +543,18 @@ def augment_unbalanced_dataset(dataset_dir, target_count=None):
 
 def main():
     OUTPUT_DIR_FINAL_TRAIN = r"/content/datasets/classification/train_img"
-    OUTPUT_DIR_FINAL_TEST  = r"/content/datasets/classification/test_img"
-    print("🔄 Kategoryzacja i augmentacja masek...")
+    OUTPUT_DIR_FINAL_TEST = r"/content/datasets/classification/test_img"
+
+    print("🔄 Kategoryzacja i augmentacja danych treningowych...")
     create_categorized_dataset(
         msk_path_train, OUTPUT_DIR_FINAL_TRAIN, method='balanced')
     augment_unbalanced_dataset(OUTPUT_DIR_FINAL_TRAIN)
-    print("✅ dane treningowe gotowe: " + OUTPUT_DIR_FINAL_TRAIN)
+    print("✅ Dane treningowe gotowe: " + OUTPUT_DIR_FINAL_TRAIN)
 
+    print("🔄 Kategoryzacja danych testowych (BEZ augmentacji)...")
     create_categorized_dataset(
         msk_path_test, OUTPUT_DIR_FINAL_TEST, method='balanced')
-    augment_unbalanced_dataset(OUTPUT_DIR_FINAL_TEST)
-    print("✅ dane testowe gotowe: " + OUTPUT_DIR_FINAL_TRAIN)
+    print("✅ Dane testowe gotowe: " + OUTPUT_DIR_FINAL_TEST)
 
 
 if __name__ == "__main__":
