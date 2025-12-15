@@ -7,7 +7,7 @@ if ON_COLAB:
     MASK_TEST_PATH = r"/content/datasets/multi/test_lab"
     IMG_TEST_PATH = r"/content/datasets/multi/test_img"
     DEVICE = "cuda"
-    WORKERS = 2
+    WORKERS = 0
 
     UNET_MODEL_TRAIN_DIR = r"/content/models/segmentation/unet/"
     UNET_MODEL_TRAIN_LOG_DIR = r"/content/models_log/segmentation/unet/"
