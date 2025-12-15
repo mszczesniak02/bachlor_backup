@@ -241,6 +241,14 @@ def train_model(writer, epochs: int = UNET_EPOCHS, batch_size: int = UNET_BATCH_
                 checkpoint_path, map_location=device, weights_only=False)
             model.load_state_dict(checkpoint['model_state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+            if 'scheduler_state_dict' in checkpoint:
+                scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+
+            if 'best_val_iou' in checkpoint:
+                best_val_iou = checkpoint['best_val_iou']
+                print(f"Resuming with Best IoU: {best_val_iou:.4f}")
+
             start_epoch = checkpoint['epoch'] + 1
         else:
             print(f"Checkpoint file not found at: {checkpoint_path}")
@@ -310,6 +318,7 @@ def train_model(writer, epochs: int = UNET_EPOCHS, batch_size: int = UNET_BATCH_
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
+                'scheduler_state_dict': scheduler.state_dict(),
                 'best_val_iou': best_val_iou,
                 'val_metrics': val_metrics,
                 'train_metrics': train_metrics,

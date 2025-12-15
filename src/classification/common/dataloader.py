@@ -25,7 +25,10 @@ class CrackDataset(Dataset):
             class_dir = self.root_dir / class_name / "masks"
 
             if not class_dir.exists():
-                continue
+                # Fallback to checking class directory implementation
+                class_dir = self.root_dir / class_name
+                if not class_dir.exists():
+                    continue
 
             for img_file in class_dir.iterdir():
                 if img_file.suffix.lower() in ['.jpg', '.jpeg', '.png']:
