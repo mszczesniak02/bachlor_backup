@@ -195,11 +195,21 @@ def train_model(writer, epochs=ENET_EPOCHS, batch_size=ENET_BATCH_SIZE, lr=ENET_
         print(f"Loading checkpoint from {RESUME_CHECKPOINT}")
         checkpoint = torch.load(
             RESUME_CHECKPOINT, map_location=device, weights_only=False)
-        model.load_state_dict(checkpoint['model_state_dict'])
-        if 'optimizer_state_dict' in checkpoint:
-            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         if 'epoch' in checkpoint:
             start_epoch = checkpoint['epoch'] + 1
+
+        state_dict = checkpoint['model_state_dict']
+        model_state_dict = model.state_dict()
+
+        # Filter keys with mismatching shapes
+        filtered_state_dict = {k: v for k, v in state_dict.items(
+        ) if k in model_state_dict and v.shape == model_state_dict[k].shape}
+
+        if len(filtered_state_dict) != len(state_dict):
+            print(
+                f"Warning: {len(state_dict) - len(filtered_state_dict)} layers were skipped due to shape mismatch (likely classifier changes).")
+
+        model.load_state_dict(filtered_state_dict, strict=False)
 
     scaler = GradScaler('cuda')
 
