@@ -22,39 +22,43 @@ from PIL import ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 train_transform = A.Compose([
-    # --- Transformacje geometryczne (zmieniają kształt/położenie) ---
-    # Upewnij się, że rozmiar pasuje do Twojego modelu
+    # 1. Najpierw ustalamy bazowy rozmiar.
+    #    Dla SegFormera B0/B1 zalecane 256x256 lub 512x512.
     A.Resize(height=256, width=256),
-    A.HorizontalFlip(p=0.5),         # Lustrzane odbicie poziome
-    A.VerticalFlip(p=0.5),           # Lustrzane odbicie pionowe
-    A.Rotate(limit=35, p=0.5),       # Obrót o max 35 stopni
 
-    # Skalowanie i przycinanie (uczy model widzieć obiekty w różnych rozmiarach)
-    A.RandomScale(scale_limit=0.2, p=0.5),
+    # 2. ShiftScaleRotate zamiast RandomScale.
+    #    To kluczowa zmiana - skaluje i obraca, ale NIE zmienia wymiarów tensora wyjściowego.
+    A.ShiftScaleRotate(
+        shift_limit=0.0625,
+        scale_limit=0.2,  # Zoom in/out
+        rotate_limit=35,  # Obrót
+        p=0.5,
+        # Czarne tło przy obrocie (można zmienić na cv2.BORDER_CONSTANT)
+        border_mode=0
+    ),
 
-    # Zniekształcenia (dobre, jeśli obiekty są organiczne/nieregularne)
+    A.HorizontalFlip(p=0.5),
+    A.VerticalFlip(p=0.5),
+
+    # 3. Zniekształcenia (Grid/Elastic)
     A.OneOf([
+        A.GridDistortion(num_steps=5, distort_limit=0.3, p=1.0),
         A.ElasticTransform(alpha=1, sigma=50, alpha_affine=50, p=1.0),
-        A.GridDistortion(p=1.0),
         A.OpticalDistortion(distort_limit=1, shift_limit=0.5, p=1.0),
     ], p=0.3),
 
-    # --- Transformacje kolorystyczne i szum (tylko na obraz, nie maskę) ---
-    A.OneOf([
-        A.RandomBrightnessContrast(
-            brightness_limit=0.2, contrast_limit=0.2, p=1.0),
-        A.HueSaturationValue(hue_shift_limit=20,
-                             sat_shift_limit=30, val_shift_limit=20, p=1.0),
-    ], p=0.5),
-
-    # Szum i rozmycie (symulacja gorszej jakości zdjęć)
+    # 4. Kolory i szum
     A.OneOf([
         A.GaussNoise(var_limit=(10.0, 50.0), p=1.0),
         A.GaussianBlur(blur_limit=(3, 7), p=1.0),
-        A.MotionBlur(p=1.0),
+    ], p=0.2),
+
+    A.OneOf([
+        A.RandomBrightnessContrast(p=1.0),
+        A.HueSaturationValue(p=1.0),
     ], p=0.3),
 
-    # --- Normalizacja i konwersja do Tensora ---
+    # 5. Normalizacja na samym końcu
     A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2(),
 ])
