@@ -13,7 +13,7 @@ def model_init(model_name: str):
 
         num_features = model.classifier[1].in_features
         model.classifier = nn.Sequential(
-            nn.Dropout(p=0.2, inplace=True),
+            nn.Dropout(p=0.5, inplace=True),
             nn.Linear(num_features, NUM_CLASSES)
         )
 

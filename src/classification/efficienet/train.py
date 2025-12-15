@@ -163,7 +163,7 @@ def train_model(writer, epochs=ENET_EPOCHS, batch_size=ENET_BATCH_SIZE, lr=ENET_
     model = model_init(model_name="efficienet")
     model = model.to(device)
 
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=lr, weight_decay=ENET_WEIGHT_DECAY)
 
