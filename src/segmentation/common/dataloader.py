@@ -6,11 +6,18 @@ from torch.utils.data import DataLoader
 from PIL import Image, ImageFile
 import numpy as np
 import albumentations as A
-
+from albumentations.pytorch import ToTensorV2
 import os
 # this is never run on as binary, so the line will not work on it's own
 from segmentation.common.hparams import *
-
+import torch
+from torch.utils.data import Dataset, DataLoader
+import numpy as np
+import albumentations as A
+from albumentations.pytorch import ToTensorV2  # <--- TEJ LINII BRAKUJE
+import os
+import cv2
+from PIL import ImageFile
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
