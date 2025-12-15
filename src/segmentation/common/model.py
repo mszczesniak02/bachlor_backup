@@ -20,7 +20,7 @@ def model_init(model_name: str):
         return model
     elif model_name == "segformer":
         model = smp.Segformer(
-            encoder_name="mit_b0",
+            encoder_name="mit_b2",
             encoder_weights="imagenet",
             in_channels=3,
             classes=1,
