@@ -84,7 +84,8 @@ def dataloader_get(root_dir, batch_size=DEFAULT_BATCH_SIZE, image_size=DEFAULT_I
         batch_size=batch_size,
         shuffle=is_training,
         num_workers=num_workers,
-        pin_memory=True
+        pin_memory=True,
+        persistent_workers=True if num_workers > 0 else False
     )
     return dataloader
 

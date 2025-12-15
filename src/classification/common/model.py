@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torchvision.models as models
+import os
 
 from classification.common.hparams import *
 
@@ -35,19 +36,25 @@ def model_init(model_name: str):
 
 def model_load(model_name: str, filepath=MODEL_PATH, device=DEVICE):
     model = model_init(model_name)
-    checkpoint = torch.load(filepath, map_location=device, weights_only=False)
 
-    if 'model_state_dict' in checkpoint:
-        model.load_state_dict(checkpoint['model_state_dict'])
-    elif 'state_dict' in checkpoint:
-        model.load_state_dict(checkpoint['state_dict'])
+    if os.path.isfile(filepath):
+        checkpoint = torch.load(
+            filepath, map_location=device, weights_only=False)
+
+        if 'model_state_dict' in checkpoint:
+            model.load_state_dict(checkpoint['model_state_dict'])
+        elif 'state_dict' in checkpoint:
+            model.load_state_dict(checkpoint['state_dict'])
+        else:
+            model.load_state_dict(checkpoint)
+
+        model.to(device)
+        model.eval()
+        return model
     else:
-        model.load_state_dict(checkpoint)
-
-    model.to(device)
-    model.eval()
-
-    return model
+        print(f"ERROR: file {filepath} not found, returning empty model")
+        model.to(device)
+        return model
 
 
 def model_save(model, filepath, epoch=None, optimizer=None, loss=None):
