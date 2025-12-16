@@ -95,7 +95,9 @@ def train_model(epochs=YOLO_EPOCHS, batch_size=YOLO_BATCH_SIZE, lr=YOLO_LEARNING
         name=f"yolov8{model_size}_crack_seg",
         exist_ok=True,  # Overwrite existing experiment with same name if exists, or False to increment
         pretrained=True,
-        imgsz=512  # Matching U-Net size (updated to 512 per user request)
+        pretrained=True,
+        imgsz=512,  # Matching U-Net size (updated to 512 per user request)
+        patience=EARLY_STOPPING_PATIENCE,
     )
 
     print("Training complete.")
