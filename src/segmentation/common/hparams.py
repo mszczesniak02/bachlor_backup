@@ -3,10 +3,10 @@ ON_COLAB = False
 
 if ON_COLAB:
     # if using 16 GB gpu :>
-    MASK_TRAIN_PATH = r"/content/datasets/multi/train_lab"
-    IMG_TRAIN_PATH = r"/content/datasets/multi/train_img"
-    MASK_TEST_PATH = r"/content/datasets/multi/test_lab"
-    IMG_TEST_PATH = r"/content/datasets/multi/test_img"
+    MASK_TRAIN_PATH = r"/content/datasets/DeepCrack/train_lab"
+    IMG_TRAIN_PATH = r"/content/datasets/DeepCrack/train_img"
+    MASK_TEST_PATH = r"/content/datasets/DeepCrack/test_lab"
+    IMG_TEST_PATH = r"/content/datasets/DeepCrack/test_img"
 
     YOLO_DATASET_DIR = r"/content/datasets/yolo_seg_data"
 
