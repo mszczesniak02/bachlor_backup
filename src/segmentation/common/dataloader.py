@@ -1,23 +1,12 @@
-import torch
-from torch.utils.data import Dataset
-from torch.utils.data import random_split
-from torch.utils.data import DataLoader
-
-from PIL import Image, ImageFile
-import numpy as np
-import albumentations as A
-from albumentations.pytorch import ToTensorV2
-import os
-# this is never run on as binary, so the line will not work on it's own
-from segmentation.common.hparams import *
-import torch
-from torch.utils.data import Dataset, DataLoader
-import numpy as np
-import albumentations as A
-from albumentations.pytorch import ToTensorV2  # <--- TEJ LINII BRAKUJE
 import os
 import cv2
-from PIL import ImageFile
+import torch
+import numpy as np
+import albumentations as A
+from PIL import Image, ImageFile
+from torch.utils.data import Dataset, DataLoader
+from albumentations.pytorch import ToTensorV2
+from segmentation.common.hparams import *
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
@@ -45,14 +34,14 @@ train_transform = A.Compose([
 
     A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2(),
-])
+], is_check_shapes=False)
 
 # Dla walidacji tylko resize i normalizacja (bez losowości!)
 val_transform = A.Compose([
     A.Resize(height=256, width=256),
     A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2(),
-])
+], is_check_shapes=False)
 
 
 class CrackDataset(Dataset):
