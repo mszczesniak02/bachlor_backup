@@ -15,14 +15,28 @@ from segmentation.common.hparams import *
 #autopep8: on
 
 
+# Path to the model checkpoint to resume. Set to None to start fresh.
+RESUME_MODEL_PATH = r"/home/krzeslaav/Projects/bachlor/model_tests/FULL_DATASET/yolo_big/runs/segment/yolov8m_crack_seg/weights/last.pt"
+
+
 def train_model(epochs=YOLO_EPOCHS, batch_size=YOLO_BATCH_SIZE, lr=YOLO_LEARNING_RATE, model_size=YOLO_MODEL_SIZE):
     """
     Main training wrapper for YOLOv8
     """
     # Initialize model
-    model_name = f"yolov8{model_size}-seg.pt"  # e.g., yolov8n-seg.pt
-    print(f"Initializing YOLOv8 model: {model_name}")
-    model = YOLO(model_name)
+    resume_flag = False
+    if RESUME_MODEL_PATH and os.path.exists(RESUME_MODEL_PATH):
+        print(f"Resuming training from: {RESUME_MODEL_PATH}")
+        model = YOLO(RESUME_MODEL_PATH)
+        resume_flag = True
+    else:
+        if RESUME_MODEL_PATH:
+            print(
+                f"Warning: Checkpoint not found at {RESUME_MODEL_PATH}. Starting fresh.")
+
+        model_name = f"yolov8{model_size}-seg.pt"  # e.g., yolov8n-seg.pt
+        print(f"Initializing YOLOv8 model: {model_name}")
+        model = YOLO(model_name)
 
     # Dataset config path
     data_yaml = os.path.join(YOLO_DATASET_DIR, 'dataset.yaml')
@@ -95,6 +109,7 @@ def train_model(epochs=YOLO_EPOCHS, batch_size=YOLO_BATCH_SIZE, lr=YOLO_LEARNING
         name=f"yolov8{model_size}_crack_seg",
         exist_ok=True,  # Overwrite existing experiment with same name if exists, or False to increment
         pretrained=True,
+        resume=resume_flag,
         imgsz=512,  # Matching U-Net size (updated to 512 per user request)
         patience=EARLY_STOPPING_PATIENCE,
     )
