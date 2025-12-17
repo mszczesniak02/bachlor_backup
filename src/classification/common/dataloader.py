@@ -57,21 +57,28 @@ class CrackDataset(Dataset):
 
 
 def get_transforms(image_size=DEFAULT_IMAGE_SIZE, is_training=True):
+    transforms_list = [
+        # Zwiększona rozdzielczość jest kluczowa dla ConvNeXt przy cienkich liniach
+        A.Resize(height=image_size, width=image_size, interpolation=1),
+    ]
+
     if is_training:
-        return A.Compose([
-            A.Resize(height=image_size, width=image_size),
+        transforms_list.extend([
             A.HorizontalFlip(p=0.5),
             A.VerticalFlip(p=0.5),
-            A.Rotate(limit=15, p=0.5),
-            A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-            ToTensorV2()
+            A.RandomRotate90(p=0.5),  # Bezpieczna rotacja dla masek
         ])
-    else:
-        return A.Compose([
-            A.Resize(height=image_size, width=image_size),
-            A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-            ToTensorV2()
-        ])
+
+    transforms_list.extend([
+        # --- FIX KRYTYCZNY ---
+        # Usuwamy: A.Normalize(mean=(0.485, ...))
+        # Dodajemy: Normalizację neutralną dla masek (skalowanie 0-1)
+        A.Normalize(mean=(0.0, 0.0, 0.0), std=(
+            1.0, 1.0, 1.0), max_pixel_value=255.0),
+        ToTensorV2()
+    ])
+
+    return A.Compose(transforms_list)
 
 
 def dataset_get(root_dir, image_size=DEFAULT_IMAGE_SIZE, is_training=True):

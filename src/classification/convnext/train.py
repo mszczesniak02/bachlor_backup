@@ -164,12 +164,13 @@ def train_model(writer, epochs=CONVNEXT_EPOCHS, batch_size=CONVNEXT_BATCH_SIZE, 
     model = model_init(model_name="convnet")
     model = model.to(device)
 
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=lr, weight_decay=CONVNEXT_WEIGHT_DECAY)
 
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='max', factor=0.5, patience=CONVNEXT_SCHEDULER_PATIENCE)
+        optimizer, mode='max', factor=0.5, betas=(0.9, 0.999),
+        eps=1e-8, patience=CONVNEXT_SCHEDULER_PATIENCE)
 
     hparams = {
         'learning_rate': lr,
