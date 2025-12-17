@@ -7,7 +7,7 @@ try:
     DATA_DIR = "/content/datasets"
     TRAIN_DIR = os.path.join(DATA_DIR, "classification_width/train_img")
     TEST_DIR = os.path.join(DATA_DIR, "classification_width/test_img")
-    DEVICE = "cpu"
+    DEVICE = "cuda"
     WORKERS = 0
     ON_COLAB = True
 
@@ -21,7 +21,7 @@ except ImportError:
     DATA_DIR = "/home/krzeslaav/Projects/datasets"
     TRAIN_DIR = os.path.join(DATA_DIR, "classification_width/train_img")
     TEST_DIR = os.path.join(DATA_DIR, "classification_width/test_img")
-    DEVICE = "cpu"
+    DEVICE = "cuda"
     WORKERS = 4
     ON_COLAB = False
 
