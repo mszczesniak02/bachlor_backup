@@ -16,7 +16,7 @@ from segmentation.common.hparams import *
 
 
 # Path to the model checkpoint to resume. Set to None to start fresh.
-RESUME_MODEL_PATH = r"/home/krzeslaav/Projects/bachlor/model_tests/FULL_DATASET/yolo_big/runs/segment/yolov8m_crack_seg/weights/last.pt"
+RESUME_MODEL_PATH = r"/content/old/runs/segment/yolov8m_crack_seg/weights/last.pt"
 
 
 def train_model(epochs=YOLO_EPOCHS, batch_size=YOLO_BATCH_SIZE, lr=YOLO_LEARNING_RATE, model_size=YOLO_MODEL_SIZE):
