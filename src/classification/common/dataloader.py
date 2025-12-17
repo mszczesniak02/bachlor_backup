@@ -18,8 +18,7 @@ class CrackDataset(Dataset):
         self.transform = transform
 
         self.samples = []
-        self.class_names = ["0_brak", "1_wlosowe",
-                            "2_male", "3_srednie"]
+        self.class_names = ["1_wlosowe", "2_male", "3_srednie", "4_duze"]
 
         for class_idx, class_name in enumerate(self.class_names):
             class_dir = self.root_dir / class_name / "masks"

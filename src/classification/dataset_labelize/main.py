@@ -186,15 +186,13 @@ def categorize_crack(percentage, thresholds=None):
     """
     Kategoryzuje pęknięcie na podstawie procentu powierzchni
 
-    Kategorie:
-    1: Włosowe 
-    2: Małe 
-    3: Średnie 
-    4: Duże 
-
-    Progi są dynamiczne - dzielą dane na 4 równe grupy na podstawie percentyli
+    Kategorie (4 klasy):
+    0: Włosowe
+    1: Małe
+    2: Średnie
+    3: Duże
     """
-    # Domyślne progi będą nadpisane przez compute_optimal_thresholds()
+    # Domyślne progi będą nadpisane
     if thresholds is None:
         thresholds = [1.0, 3.0, 8.0]
 

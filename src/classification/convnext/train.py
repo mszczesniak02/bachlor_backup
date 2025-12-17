@@ -156,7 +156,7 @@ def validate(model, loader, criterion, device):
 
 
 def train_model(writer, epochs=CONVNEXT_EPOCHS, batch_size=CONVNEXT_BATCH_SIZE, lr=CONVNEXT_LEARNING_RATE, device=DEVICE):
-    class_names = ["0_brak", "1_wlosowe", "2_male", "3_srednie"]
+    class_names = ["1_wlosowe", "2_male", "3_srednie", "4_duze"]
 
     train_loader, val_loader = dataloader_init(batch_size=batch_size)
     print("Dataloader initialized.")

@@ -155,15 +155,38 @@ def validate(model, loader, criterion, device):
 
 
 def train_model(writer, epochs=ENET_EPOCHS, batch_size=ENET_BATCH_SIZE, lr=ENET_LEARNING_RATE, device=DEVICE):
-    class_names = ["0_brak", "1_wlosowe", "2_male", "3_srednie"]
+    class_names = ["1_wlosowe", "2_male", "3_srednie", "4_duze"]
 
     train_loader, val_loader = dataloader_init(batch_size=batch_size)
     print("Dataloader initialized.")
 
+    # --- Class Weights Calculation ---
+    print("Calculating class weights options...")
+    class_dist = train_loader.dataset.get_class_distribution()
+    total_samples = sum(class_dist.values())
+    unique_classes = sorted(class_dist.keys())
+    num_classes = len(unique_classes)
+
+    print(f"Class distribution: {class_dist}")
+
+    class_weights = []
+    for i in range(num_classes):
+        cnt = class_dist.get(i, 0)
+        if cnt > 0:
+            # weight = total / (classes * count)
+            w = total_samples / (num_classes * cnt)
+        else:
+            w = 1.0
+        class_weights.append(w)
+
+    class_weights_tensor = torch.FloatTensor(class_weights).to(device)
+    print(f"Using class weights: {class_weights}")
+
     model = model_init(model_name="efficienet")
     model = model.to(device)
 
-    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
+    criterion = nn.CrossEntropyLoss(
+        weight=class_weights_tensor, label_smoothing=0.1)
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=lr, weight_decay=ENET_WEIGHT_DECAY)
 

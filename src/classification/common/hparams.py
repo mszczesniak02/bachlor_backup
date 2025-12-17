@@ -1,10 +1,15 @@
+import os
+
 ON_COLAB = False
 
-if ON_COLAB == True:
-    TRAIN_DIR = "/content/datasets/classification/train_img"
-    TEST_DIR = "/content/datasets/classification/test_img"
+try:
+    import google.colab
+    DATA_DIR = "/content/datasets"
+    TRAIN_DIR = os.path.join(DATA_DIR, "classification_width/train_img")
+    TEST_DIR = os.path.join(DATA_DIR, "classification_width/test_img")
     DEVICE = "cuda"
     WORKERS = 0
+    ON_COLAB = True
 
     ENET_MODEL_TRAIN_DIR = "/content/models/classification/efficienet/"
     ENET_MODEL_TRAIN_LOG_DIR = "/content/models_log/classification/efficienet/"
@@ -12,11 +17,13 @@ if ON_COLAB == True:
     CONVNEXT_MODEL_TRAIN_DIR = "/content/models/classification/convnext/"
     CONVNEXT_MODEL_TRAIN_LOG_DIR = "/content/models_log/classification/convnext/"
 
-else:
-    TRAIN_DIR = "../../../../datasets/multi_class/train_balanced/"
-    TEST_DIR = "../../../../datasets/multi_class/test_balanced/"
+except ImportError:
+    DATA_DIR = "/home/krzeslaav/Projects/datasets"
+    TRAIN_DIR = os.path.join(DATA_DIR, "classification_width/train_img")
+    TEST_DIR = os.path.join(DATA_DIR, "classification_width/test_img")
     DEVICE = "cuda"
     WORKERS = 4
+    ON_COLAB = False
 
     ENET_MODEL_TRAIN_DIR = "../../../models/classification/efficienet/"
     ENET_MODEL_TRAIN_LOG_DIR = "../../../models_log/classification/efficienet/"
