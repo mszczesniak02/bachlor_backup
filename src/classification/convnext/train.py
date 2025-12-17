@@ -161,10 +161,33 @@ def train_model(writer, epochs=CONVNEXT_EPOCHS, batch_size=CONVNEXT_BATCH_SIZE, 
     train_loader, val_loader = dataloader_init(batch_size=batch_size)
     print("Dataloader initialized.")
 
+    # --- Class Weights Calculation ---
+    print("Calculating class weights options...")
+    class_dist = train_loader.dataset.get_class_distribution()
+    total_samples = sum(class_dist.values())
+    unique_classes = sorted(class_dist.keys())
+    num_classes = len(unique_classes)
+
+    print(f"Class distribution: {class_dist}")
+
+    class_weights = []
+    for i in range(num_classes):
+        cnt = class_dist.get(i, 0)
+        if cnt > 0:
+            # weight = total / (classes * count)
+            w = total_samples / (num_classes * cnt)
+        else:
+            w = 1.0
+        class_weights.append(w)
+
+    class_weights_tensor = torch.FloatTensor(class_weights).to(device)
+    print(f"Using class weights: {class_weights}")
+
     model = model_init(model_name="convnet")
     model = model.to(device)
 
-    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
+    criterion = nn.CrossEntropyLoss(
+        weight=class_weights_tensor, label_smoothing=0.1)
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=lr, weight_decay=CONVNEXT_WEIGHT_DECAY)
 

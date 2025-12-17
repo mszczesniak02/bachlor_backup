@@ -70,11 +70,7 @@ def get_transforms(image_size=DEFAULT_IMAGE_SIZE, is_training=True):
         ])
 
     transforms_list.extend([
-        # --- FIX KRYTYCZNY ---
-        # Usuwamy: A.Normalize(mean=(0.485, ...))
-        # Dodajemy: Normalizację neutralną dla masek (skalowanie 0-1)
-        A.Normalize(mean=(0.0, 0.0, 0.0), std=(
-            1.0, 1.0, 1.0), max_pixel_value=255.0),
+        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
         ToTensorV2()
     ])
 

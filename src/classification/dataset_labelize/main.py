@@ -363,16 +363,16 @@ def show_category_samples(image_dir, mask_dir, num_samples=2):
     return category_files
 
 
-def create_categorized_dataset(mask_dir, output_base_dir, thresholds=None, method='original'):
+def create_categorized_dataset(mask_dir, output_base_dir, image_dir=None, thresholds=None, method='original'):
     """
-    Kopiuje TYLKO MASKI do folderów według kategorii
+    Kopiuje obrazy (jeśli podano image_dir) lub maski do folderów według kategorii.
     """
     if thresholds is None:
         thresholds = compute_optimal_thresholds(mask_dir, method=method)
 
     category_names = ["1_wlosowe", "2_male", "3_srednie", "4_duze"]
 
-    # Stwórz strukturę folderów - TYLKO MASKS (bez images!)
+    # Stwórz strukturę folderów
     for cat_name in category_names:
         os.makedirs(os.path.join(output_base_dir, cat_name), exist_ok=True)
 
@@ -380,6 +380,7 @@ def create_categorized_dataset(mask_dir, output_base_dir, thresholds=None, metho
         mask_dir) if f.endswith(('.png', '.jpg', '.jpeg'))]
     category_counts = {i: 0 for i in range(4)}
     skipped = 0
+    missing_images = 0
 
     # Pętla z progress bar
     for mask_file in tqdm(mask_files, desc="Kategoryzowanie"):
@@ -393,16 +394,44 @@ def create_categorized_dataset(mask_dir, output_base_dir, thresholds=None, metho
                 skipped += 1
                 continue
 
-            dest_mask = os.path.join(
-                output_base_dir, category_names[cat_id], mask_file)
-            shutil.copy2(mask_path, dest_mask)
+            # COPY LOGIC
+            if image_dir:
+                # Try to find corresponding image (handling jpg/png mismatch if necessary)
+                # Assuming same name, same extension or similar
+                image_source = os.path.join(image_dir, mask_file)
+                if not os.path.exists(image_source):
+                    # Try changing extension from png to jpg
+                    if mask_file.endswith('.png'):
+                        alt_name = mask_file.replace('.png', '.jpg')
+                        image_source = os.path.join(image_dir, alt_name)
+                    elif mask_file.endswith('.jpg'):
+                        alt_name = mask_file.replace('.jpg', '.png')
+                        image_source = os.path.join(image_dir, alt_name)
+
+                if not os.path.exists(image_source):
+                    missing_images += 1
+                    continue
+
+                dest_file = os.path.join(
+                    output_base_dir, category_names[cat_id], os.path.basename(image_source))
+                shutil.copy2(image_source, dest_file)
+            else:
+                # Copy mask
+                dest_file = os.path.join(
+                    output_base_dir, category_names[cat_id], mask_file)
+                shutil.copy2(mask_path, dest_file)
+
             category_counts[cat_id] += 1
 
         except:
             skipped += 1
             continue
 
-    print(f"✓ Kategoryzacja: {sum(category_counts.values())} masek")
+    print(f"✓ Kategoryzacja: {sum(category_counts.values())} plików")
+    if missing_images > 0:
+        print(
+            f"⚠ Pominięto {missing_images} plików z powodu braku obrazu źródłowego.")
+
     return category_counts
 
 
@@ -442,58 +471,55 @@ def plot_category_histogram(category_counts, category_names, filename=None, titl
 
 def augment_single_image(args):
     """
-    Augmentuje TYLKO maskę z DUŻĄ augmentacją (+ random crop).
+    Augmentuje obraz (nie maskę!) używając bezpiecznych transformacji.
     Zwraca True jeśli sukces, False jeśli błąd.
     """
     from PIL import ImageOps, ImageEnhance
 
-    mask_folder, original_name, aug_variant_idx = args
+    folder_path, original_name, aug_variant_idx = args
 
     try:
-        original_mask_path = os.path.join(mask_folder, original_name)
-        mask = Image.open(original_mask_path).convert('L')
-        mask_width, mask_height = mask.size
+        image_path = os.path.join(folder_path, original_name)
+        image = Image.open(image_path).convert('RGB')
 
-        # Random crop (80-100% oryginalnego rozmiaru)
+        # --- USUNIĘTO RANDOM CROP ---
+        # Clipping/Cropping zmienia zawartość semantyczną (np. ucięcie pęknięcia zmienia etykietę klasy),
+        # co jest niedopuszczalne w klasyfikacji opartej na ilości/wielkości pęknięć.
+
+        # 1. Odbicia lustrzane (bezpieczne)
+        if random.random() > 0.5:
+            image = ImageOps.mirror(image)
+
+        if random.random() > 0.5:
+            image = ImageOps.flip(image)
+
+        # 2. Rotacje (bezpieczne)
         if random.random() > 0.3:
-            crop_factor = random.uniform(0.8, 1.0)
-            crop_width = int(mask_width * crop_factor)
-            crop_height = int(mask_height * crop_factor)
-            left = random.randint(0, mask_width - crop_width)
-            top = random.randint(0, mask_height - crop_height)
-            mask = mask.crop((left, top, left + crop_width, top + crop_height))
-            mask = mask.resize((mask_width, mask_height),
-                               Image.Resampling.LANCZOS)
-
-        # Kombinuj różne augmentacje losowo
-        if random.random() > 0.2:  # 80% szansa
-            mask = ImageOps.mirror(mask)
-
-        if random.random() > 0.2:
-            mask = ImageOps.flip(mask)
-
-        if random.random() > 0.4:  # 60% szansa
             angle = random.choice([90, 180, 270])
-            mask = mask.rotate(angle, expand=False)
+            image = image.rotate(angle, expand=False)
 
-        if random.random() > 0.5:  # 50% szansa - losowe przesunięcie
-            offset_x = random.randint(-10, 10)
-            offset_y = random.randint(-10, 10)
-            if offset_x != 0 or offset_y != 0:
-                mask = ImageOps.expand(mask, (max(0, offset_x), max(0, offset_y),
-                                              max(0, -offset_x), max(0, -offset_y)), fill=0)
-                mask = mask.crop((abs(min(0, offset_x)), abs(min(0, offset_y)),
-                                 mask.width + min(0, offset_x), mask.height + min(0, offset_y)))
-                mask = mask.resize((mask_width, mask_height),
-                                   Image.Resampling.LANCZOS)
+        # 3. Delikatne zmiany kolorystyczne (jasność, kontrast)
+        if random.random() > 0.3:
+            enhancer = ImageEnhance.Brightness(image)
+            # 0.8 do 1.2
+            factor = 0.8 + (random.random() * 0.4)
+            image = enhancer.enhance(factor)
 
-        # Zapisz augmentowaną maskę
-        base_name = original_name.split('.')[0]
-        aug_name = f"{base_name}_aug_{aug_variant_idx:05d}.png"
-        mask.save(os.path.join(mask_folder, aug_name))
+        if random.random() > 0.3:
+            enhancer = ImageEnhance.Contrast(image)
+            factor = 0.8 + (random.random() * 0.4)
+            image = enhancer.enhance(factor)
+
+        # Zapisz augmentowany obraz
+        base_name = original_name.rsplit('.', 1)[0]
+        ext = original_name.rsplit('.', 1)[1]
+        aug_name = f"{base_name}_aug_{aug_variant_idx:05d}.{ext}"
+
+        image.save(os.path.join(folder_path, aug_name), quality=95)
 
         return True
     except Exception as e:
+        # print(f"Error augmenting {original_name}: {e}")
         return False
 
 
@@ -520,12 +546,57 @@ def augment_unbalanced_dataset(dataset_dir, augmentation_factor=None):
                         if f.endswith(('.png', '.jpg', '.jpeg')) and '_aug_' not in f])
             category_counts[cat_dir] = count
 
-    # Docelowa liczba = max kategoria (wyrównaj do największej)
-    max_count = max(category_counts.values()) if category_counts else 1000
-    target_count = max_count
+    # Docelowa liczba = max kategoria, ale z limitem mnożnika
+    # Zbyt duża liczba kopii (np. 100x) powoduje overfitting na tych konkretnych obrazach
+    MAX_AUGMENTATION_RATIO = 5
+
+    counts = list(category_counts.values())
+    if not counts:
+        return
+
+    max_count = max(counts)
+
+    # Target count to median or max?
+    # Let's target MAX but cap the ratio for small classes
+
+    targets = {}
+    for cat, count in category_counts.items():
+        # Ile chcielibyśmy mieć (wyrównanie do max)
+        desired = max_count
+
+        # Ale nie więcej niż N razy oryginał (żeby nie było 50 powtórzeń tego samego zdjęcia)
+        limit = count * MAX_AUGMENTATION_RATIO
+
+        # Wybieramy mniejszą z tych dwóch, ale nie mniej niż count (nie usuwamy)
+        # Chyba że target < count (nie powinno się zdarzyć przy max_count)
+        targets[cat] = min(desired, limit)
+
+        # Opcjonalnie: Zawsze chcemy przynajmniej pewną ilość (np. 1000), o ile mamy z czego kopiować?
+        # Jeśli mamy 10 zdjęć, zrobienie 1000 to ratio 100x -> źle.
+        # Więc limit ratio jest nadrzędny.
 
     if augmentation_factor and augmentation_factor > 1:
-        target_count = max_count * augmentation_factor
+        # Jeśli użytkownik wymusza globalny mnożnik, stosujemy go, ale też z umiarem
+        for cat in targets:
+            targets[cat] = int(targets[cat] * augmentation_factor)
+
+    num_processes = cpu_count()
+    all_tasks = []
+    global_aug_idx = 0
+
+    # Przygotuj taskami
+    for cat_dir in category_dirs:
+        cat_path = os.path.join(dataset_dir, cat_dir)
+        if not os.path.exists(cat_path):
+            continue
+
+        current_count = category_counts.get(cat_dir, 0)
+        target_count = targets.get(cat_dir, current_count)
+
+        needed = target_count - current_count
+
+        if needed <= 0:
+            continue
 
     num_processes = cpu_count()
     all_tasks = []
@@ -567,18 +638,30 @@ def augment_unbalanced_dataset(dataset_dir, augmentation_factor=None):
 def main():
     OUTPUT_DIR_FINAL_TRAIN = r"/content/datasets/classification/train_img"
     OUTPUT_DIR_FINAL_TEST = r"/content/datasets/classification/test_img"
-    # OUTPUT_DIR_FINAL_TRAIN = r"/home/krzeslaav/Projects/datasets/multi/train_img"
-    # OUTPUT_DIR_FINAL_TEST = r"/home/krzeslaav/Projects/datasets/multi/test_img"
+
+    # Source Images Paths (Standard structure assumption based on input masks)
+    # Assumes train_img is sibling to train_lab
+    img_path_train = msk_path_train.replace('train_lab', 'train_img')
+    img_path_test = msk_path_test.replace('test_lab', 'test_img')
+
+    # Check if local or colab
+    if not os.path.exists(msk_path_train):
+        print(
+            f"Warning: Mask path {msk_path_train} does not exist. Please check paths.")
+        # Fallback to relative if user is local
+        # msk_path_train = r"../../../../datasets/DeepCrack/train_lab"
+        # img_path_train = r"../../../../datasets/DeepCrack/train_img"
 
     print("🔄 Kategoryzacja i augmentacja danych treningowych...")
     create_categorized_dataset(
-        msk_path_train, OUTPUT_DIR_FINAL_TRAIN, method='balanced')
+        msk_path_train, OUTPUT_DIR_FINAL_TRAIN, image_dir=img_path_train, method='balanced')
+
     augment_unbalanced_dataset(OUTPUT_DIR_FINAL_TRAIN)
     print("✅ Dane treningowe gotowe: " + OUTPUT_DIR_FINAL_TRAIN)
 
     print("🔄 Kategoryzacja danych testowych (BEZ augmentacji)...")
     create_categorized_dataset(
-        msk_path_test, OUTPUT_DIR_FINAL_TEST, method='balanced')
+        msk_path_test, OUTPUT_DIR_FINAL_TEST, image_dir=img_path_test, method='balanced')
     print("✅ Dane testowe gotowe: " + OUTPUT_DIR_FINAL_TEST)
 
 
