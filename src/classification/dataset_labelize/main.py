@@ -15,12 +15,12 @@ from functools import partial
 # msk_path_test = r"/content/datasets/multi/test_lab"
 # img_path_test = r"/content/datasets/multi/test_img"
 
-msk_path_train = r"../../../../datasets/dataset_classification/train_lab"
-msk_path_test = r"../../../../datasets/dataset_classification/test_lab"
+# msk_path_train = r"../../../../datasets/dataset_classification/train_lab"
+# msk_path_test = r"../../../../datasets/dataset_classification/test_lab"
 
 
-# msk_path_train = "/content/datasets/multi/train_lab"
-# msk_path_test = "/content/datasets/multi/test_lab"
+msk_path_train = "/content/datasets/multi/train_lab"
+msk_path_test = "/content/datasets/multi/test_lab"
 
 
 def image_analyze(mask_path, show=False) -> tuple:
@@ -565,10 +565,10 @@ def augment_unbalanced_dataset(dataset_dir, augmentation_factor=None):
 
 
 def main():
-    # OUTPUT_DIR_FINAL_TRAIN = r"/content/datasets/classification/train_img"
-    # OUTPUT_DIR_FINAL_TEST = r"/content/datasets/classification/test_img"
-    OUTPUT_DIR_FINAL_TRAIN = r"/home/krzeslaav/Projects/datasets/multi/train_img"
-    OUTPUT_DIR_FINAL_TEST = r"/home/krzeslaav/Projects/datasets/multi/test_img"
+    OUTPUT_DIR_FINAL_TRAIN = r"/content/datasets/classification/train_img"
+    OUTPUT_DIR_FINAL_TEST = r"/content/datasets/classification/test_img"
+    # OUTPUT_DIR_FINAL_TRAIN = r"/home/krzeslaav/Projects/datasets/multi/train_img"
+    # OUTPUT_DIR_FINAL_TEST = r"/home/krzeslaav/Projects/datasets/multi/test_img"
 
     print("🔄 Kategoryzacja i augmentacja danych treningowych...")
     create_categorized_dataset(
