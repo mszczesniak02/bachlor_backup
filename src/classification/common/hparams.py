@@ -7,7 +7,7 @@ try:
     DATA_DIR = "/content/datasets"
     TRAIN_DIR = os.path.join(DATA_DIR, "classification_width/train_img")
     TEST_DIR = os.path.join(DATA_DIR, "classification_width/test_img")
-    DEVICE = "cuda"
+    DEVICE = "cpu"
     WORKERS = 0
     ON_COLAB = True
 
@@ -21,7 +21,7 @@ except ImportError:
     DATA_DIR = "/home/krzeslaav/Projects/datasets"
     TRAIN_DIR = os.path.join(DATA_DIR, "classification_width/train_img")
     TEST_DIR = os.path.join(DATA_DIR, "classification_width/test_img")
-    DEVICE = "cuda"
+    DEVICE = "cpu"
     WORKERS = 4
     ON_COLAB = False
 
@@ -38,7 +38,7 @@ DEFAULT_BATCH_SIZE = 16
 DEFAULT_LEARNING_RATE = 1e-3
 DEFAULT_WEIGHT_DECAY = 1e-5
 DEFAULT_EPOCHS = 50
-PATIENCE = 18
+PATIENCE = 10
 NUM_CLASSES = 4
 SEED = 42
 

@@ -14,11 +14,8 @@ matplotlib.use('Agg')
 # Default configuration
 # Try to find the dataset path
 POSSIBLE_PATHS = [
-    r"/home/krzeslaav/Projects/datasets/dataset_segmentation/train_lab",
-    r"/content/datasets/multi/train_lab",
-    r"/home/krzeslaav/Projects/datasets/multi/train_lab",
-    r"../../../../datasets/multi/train_lab",
-    r"../../../../datasets/DeepCrack/train_lab"
+    r"/content/datasets/multi/train_lab"
+    # r"/content/datasets/DeepCrack/train_lab"
 ]
 
 
