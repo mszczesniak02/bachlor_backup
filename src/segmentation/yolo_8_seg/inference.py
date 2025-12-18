@@ -1,18 +1,19 @@
-
-from utils.utils import seed_everything
-from segmentation.common.hparams import *
+#autopep8:off
 import sys
 import os
-import time
-import numpy as np
-import cv2
-from tqdm import tqdm
-from ultralytics import YOLO
-import matplotlib.pyplot as plt
-
 # Add project root to sys.path
 sys.path.append(os.path.abspath(
     os.path.join(os.path.dirname(__file__), '../../')))
+
+import matplotlib.pyplot as plt
+from ultralytics import YOLO
+from tqdm import tqdm
+import cv2
+import numpy as np
+import time
+from utils.utils import seed_everything
+from segmentation.common.hparams import *
+# autopep8:on
 
 
 def evaluate_init(model_path):
