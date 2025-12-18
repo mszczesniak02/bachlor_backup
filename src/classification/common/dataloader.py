@@ -95,12 +95,12 @@ def dataloader_get(root_dir, batch_size=DEFAULT_BATCH_SIZE, image_size=DEFAULT_I
     return dataloader
 
 
-def dataloader_init(batch_size: int = DEFAULT_BATCH_SIZE) -> tuple[DataLoader, DataLoader]:
+def dataloader_init(batch_size: int = DEFAULT_BATCH_SIZE, image_size: int = DEFAULT_IMAGE_SIZE) -> tuple[DataLoader, DataLoader]:
     # Using global TRAIN_DIR and TEST_DIR from hparams
     train_dl = dataloader_get(
-        TRAIN_DIR, batch_size=batch_size, is_training=True)
+        TRAIN_DIR, batch_size=batch_size, image_size=image_size, is_training=True)
     valid_dl = dataloader_get(
-        TEST_DIR, batch_size=batch_size, is_training=False)
+        TEST_DIR, batch_size=batch_size, image_size=image_size, is_training=False)
 
     return train_dl, valid_dl
 
