@@ -4,6 +4,8 @@ import os
 from pathlib import Path
 import numpy as np
 from PIL import Image
+import base64
+from io import BytesIO
 
 # Konfiguracja
 UPLOAD_FOLDER = 'uploads'
@@ -44,6 +46,17 @@ def analyze_image(filepath):
             min_brightness = int(np.min(pixels))
             max_brightness = int(np.max(pixels))
 
+            # Stwórz miniaturkę
+            thumbnail_size = (200, 200)
+            img_thumbnail = img.copy()
+            img_thumbnail.thumbnail(thumbnail_size, Image.Resampling.LANCZOS)
+
+            # Konwertuj miniaturkę do base64
+            buffer = BytesIO()
+            img_thumbnail.save(buffer, format='PNG')
+            buffer.seek(0)
+            thumbnail_b64 = base64.b64encode(buffer.getvalue()).decode()
+
             return {
                 'success': True,
                 'info': {
@@ -61,7 +74,8 @@ def analyze_image(filepath):
                         'min': min_brightness,
                         'max': max_brightness
                     },
-                    'file_size_kb': round(os.path.getsize(filepath) / 1024, 2)
+                    'file_size_kb': round(os.path.getsize(filepath) / 1024, 2),
+                    'thumbnail': f'data:image/png;base64,{thumbnail_b64}'
                 }
             }
     except Exception as e:
