@@ -43,7 +43,7 @@ def evaluate_init(model_name:str="segformer"):
     model.to("cpu")
 
     dataset = dataset_get(img_path=IMG_TEST_PATH,
-                          mask_path=MASK_TEST_PATH, transform=transform_val)
+                          mask_path=MASK_TEST_PATH, transform=val_transform)
 
     return model, dataset
 

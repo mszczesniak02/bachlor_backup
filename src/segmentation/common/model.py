@@ -16,11 +16,13 @@ def model_init(model_name: str):
             encoder_weights="imagenet",
             in_channels=3,
             classes=1,
+            decoder_attention_type="scse",
+            decoder_use_batchnorm=True
         )
         return model
     elif model_name == "segformer":
         model = smp.Segformer(
-            encoder_name="mit_b2",
+            encoder_name="mit_b0",
             encoder_weights="imagenet",
             in_channels=3,
             classes=1,
@@ -58,9 +60,13 @@ def model_save(model, checkpoint=None, filepath=MODEL_INFERENCE_DIR, filename="m
 
 def model_predict(model, dataset, index=69) -> np.array:
     i, msk = dataset[index]
-    img = ten2np(i)
+    img = ten2np(i, denormalize=True)
     msk = ten2np(msk)
-    out = ten2np(model(i.unsqueeze(0)))
+
+    device = next(model.parameters()).device
+    input_tensor = i.unsqueeze(0).to(device)
+
+    out = ten2np(torch.sigmoid(model(input_tensor)))
     return img, msk, out
 
 

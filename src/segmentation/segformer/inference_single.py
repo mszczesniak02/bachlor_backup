@@ -20,17 +20,20 @@ import numpy as np
 # autopep8: off
 
 
+model_path_only_DeepCrack = r"/home/krzeslaav/Projects/bachlor/model_tests/ONLY_DEEPCRACK/segformermodel_segformer_0.647862974802653.pth"
+model_path_full_ds = r"/home/krzeslaav/Projects/bachlor/model_tests/FULL_DATASET/segformermodel_segformer_0.5864474233337809.pth"
+
 def main():
 
-    model = model_load("segformer")
+    model = model_load("segformer", filepath=model_path_only_DeepCrack)
     model.eval()
 
-    dataset = dataset_get(img_path="../../../../datasets/multi/test_img/",
-                          mask_path="../../../../datasets/multi/test_lab/", transform=transform_val)
+    dataset = dataset_get(img_path="../../../../datasets/dataset_segmentation/test_img/",
+                          mask_path="../../../../datasets/dataset_segmentation/test_lab/", transform=val_transform)
 
-    magic = 960
+    magic = 2
 
-    img, msk, out = model_predict(model, dataset)
+    img, msk, out = model_predict(model, dataset, magic)
 
     plot_effect(img, msk, effect=out, effect_title="output")
 

@@ -12,29 +12,16 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 train_transform = A.Compose([
     A.Resize(height=256, width=256),
-
-    # Mniej agresywne skalowanie i obrót (limit 15 stopni zamiast 35)
-    A.ShiftScaleRotate(
-        shift_limit=0.05,
-        scale_limit=0.1,
-        rotate_limit=15,
-        p=0.5,
-        border_mode=0
-    ),
-
     A.HorizontalFlip(p=0.5),
     A.VerticalFlip(p=0.5),
-
-    # Tylko jasność i kontrast - bezpieczne dla segmentacji
+    A.RandomRotate90(p=0.5),
+    # Elastyczne deformacje - kluczowe dla nauki ciągłości rys
+    A.ElasticTransform(alpha=1, sigma=50, alpha_affine=50, p=0.2),
     A.RandomBrightnessContrast(
-        brightness_limit=0.2,
-        contrast_limit=0.2,
-        p=0.5
-    ),
-
+        brightness_limit=0.2, contrast_limit=0.2, p=0.5),
     A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2(),
-], is_check_shapes=False)
+])
 
 # Dla walidacji tylko resize i normalizacja (bez losowości!)
 val_transform = A.Compose([

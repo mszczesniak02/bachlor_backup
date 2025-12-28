@@ -134,11 +134,19 @@ def main():
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    print("Loading model...")
-    # Using efficienet by default as this is in efficienet folder
-    model = model_load("efficienet", filepath=MODEL_PATH, device=device)
+    print("Loading ConvNeXt model...")
+    # NOTE: Assuming ConvNeXt specific path logic or using shared default MODEL_PATH but overriding name
+    # We should ideally use a specific ConvNeXt path if available in hparams, but user didn't specify.
+    # We will assume MODEL_PATH points to a valid model or we should point to CONVNEXT_MODEL_TRAIN_DIR/best_model.pth
+
+    # Construct distinct path if possible
+    model_path = os.path.join(CONVNEXT_MODEL_TRAIN_DIR, "best_model.pth")
+    if not os.path.exists(model_path):
+        model_path = MODEL_PATH # Fallback
+
+    model = model_load("convnet", filepath=model_path, device=device)
     model.eval()
-    print(f"Model loaded from: {MODEL_PATH}")
+    print(f"Model loaded from: {model_path}")
 
     # Load dataset structure only
     test_dataset = dataset_get(TEST_DIR, image_size=IMAGE_SIZE, is_training=False)

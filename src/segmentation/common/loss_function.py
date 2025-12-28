@@ -61,31 +61,24 @@ class DiceLoss(torch.nn.Module):
 
 
 class DiceBCELoss(torch.nn.Module):
-    def __init__(self, weight=None, size_average=True):
+    def __init__(self, weight_bce=0.5, weight_dice=0.5):
         super(DiceBCELoss, self).__init__()
+        self.weight_bce = weight_bce
+        self.weight_dice = weight_dice
 
-    def forward(self, inputs, targets, smooth=1):
-        # inputs: surowe logity z modelu (bez sigmoidy)
-        # targets: binarne maski (0 lub 1)
+    def forward(self, inputs, targets, smooth=1e-6):
+        # Stabilne numerycznie BCE
+        bce_loss = F.binary_cross_entropy_with_logits(inputs, targets)
 
-        # 1. Komponent BCE (z wbudowaną Sigmoidą dla stabilności numerycznej)
-        bce_loss = F.binary_cross_entropy_with_logits(
-            inputs, targets, reduction='mean')
-
-        # 2. Komponent Dice
-        inputs_sigmoid = torch.sigmoid(inputs)
-
-        # Spłaszczenie tensorów do wektorów
-        inputs_flat = inputs_sigmoid.view(-1)
+        inputs_sig = torch.sigmoid(inputs).view(-1)
         targets_flat = targets.view(-1)
 
-        intersection = (inputs_flat * targets_flat).sum()
+        intersection = (inputs_sig * targets_flat).sum()
         dice_score = (2. * intersection + smooth) / \
-            (inputs_flat.sum() + targets_flat.sum() + smooth)
+            (inputs_sig.sum() + targets_flat.sum() + smooth)
         dice_loss = 1 - dice_score
 
-        # Suma ważona: 50% BCE + 50% Dice
-        return bce_loss + dice_loss
+        return self.weight_bce * bce_loss + self.weight_dice * dice_loss
 
 
 class DiceFocalLoss(torch.nn.Module):
@@ -113,30 +106,23 @@ class DiceFocalLoss(torch.nn.Module):
 
 
 class TverskyLoss(torch.nn.Module):
-    def __init__(self, alpha=0.3, beta=0.7, smooth=1):
+    def __init__(self, alpha=0.3, beta=0.7, smooth=1e-6):
         super(TverskyLoss, self).__init__()
-        self.alpha = alpha
-        self.beta = beta
+        self.alpha = alpha  # mniejsza kara za FP (szum)
+        self.beta = beta   # większa kara za FN (przerwy w pęknięciach)
         self.smooth = smooth
 
     def forward(self, inputs, targets):
-        # inputs: logity (bez sigmoidy)
-        # targets: binarne maski
-
         inputs = torch.sigmoid(inputs)
-
-        # flatten
         inputs = inputs.view(-1)
         targets = targets.view(-1)
 
-        # True Positives, False Positives, False Negatives
         TP = (inputs * targets).sum()
         FP = ((1 - targets) * inputs).sum()
         FN = (targets * (1 - inputs)).sum()
 
-        tversky = (TP + self.smooth) / \
-            (TP + self.alpha * FP + self.beta * FN + self.smooth)
-
+        tversky = (TP + self.smooth) / (TP + self.alpha *
+                                        FP + self.beta * FN + self.smooth)
         return 1 - tversky
 
 

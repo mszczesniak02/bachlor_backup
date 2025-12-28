@@ -197,8 +197,50 @@ function displayResult(data) {
                     <div class="result-label">Solidność</div>
                     <div class="result-value">${basic.solidity ? basic.solidity.toFixed(3) : 0}</div>
                 </div>
+                <div class="result-item">
+                    <div class="result-label">Wsp. Kształtu</div>
+                    <div class="result-value">${basic.aspect_ratio ? basic.aspect_ratio.toFixed(2) : 0}</div>
+                </div>
+                 <div class="result-item">
+                    <div class="result-label">Orientacja</div>
+                    <div class="result-value">${basic.orientation ? (basic.orientation * 180 / Math.PI).toFixed(1) : 0}°</div>
+                </div>
             </div>
         </div>`;
+
+        // --- Advanced Analysis ---
+        if (analysis.geometric.advanced) {
+            const adv = analysis.geometric.advanced;
+            html += `<div class="result-group" style="margin-top: 20px;">
+                <h3 style="color: #667eea; margin-bottom: 10px;">🔬 Zaawansowana Analiza</h3>
+                <div class="result-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                     <div class="result-item">
+                        <div class="result-label">Krętość (Tortuosity)</div>
+                        <div class="result-value">${adv.tortuosity ? adv.tortuosity.toFixed(3) : 1.0}</div>
+                    </div>
+                     <div class="result-item">
+                        <div class="result-label">Wymiar Fraktalny</div>
+                        <div class="result-value">${adv.fractal_dimension ? adv.fractal_dimension.toFixed(3) : 0}</div>
+                    </div>
+                     <div class="result-item">
+                        <div class="result-label">Punkty Rozgałęzień</div>
+                        <div class="result-value">${adv.branch_points_count !== undefined ? adv.branch_points_count : 0}</div>
+                    </div>
+                     <div class="result-item">
+                        <div class="result-label">Punkty Końcowe</div>
+                        <div class="result-value">${adv.endpoints_count !== undefined ? adv.endpoints_count : 0}</div>
+                    </div>
+                     <div class="result-item">
+                        <div class="result-label">Gęstość Pęknięć</div>
+                        <div class="result-value">${adv.crack_density ? adv.crack_density.toFixed(4) : 0}</div>
+                    </div>
+                     <div class="result-item">
+                        <div class="result-label">Intensywność Rozgałęzień</div>
+                        <div class="result-value">${adv.branching_intensity ? adv.branching_intensity.toFixed(4) : 0}</div>
+                    </div>
+                </div>
+            </div>`;
+        }
     }
 
     resultContent.innerHTML = html;

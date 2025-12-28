@@ -14,7 +14,8 @@ matplotlib.use('Agg')
 # Default configuration
 # Try to find the dataset path
 POSSIBLE_PATHS = [
-    r"/content/datasets/multi/train_lab"
+    r"/content/datasets/multi/train_lab",
+    r"/home/krzeslaav/Projects/datasets/dataset_segmentation/train_lab"
     # r"/content/datasets/DeepCrack/train_lab"
 ]
 
@@ -197,7 +198,7 @@ def create_categorized_dataset_width(mask_dir, output_base_dir, image_dir=None, 
         try:
             width = calculate_max_width(mask_path)
 
-            # Skip empty masks (width < 1.0)
+            # Skip empty masks
             if width < 1.0:
                 continue
 
@@ -212,10 +213,10 @@ def create_categorized_dataset_width(mask_dir, output_base_dir, image_dir=None, 
                 # Try to find corresponding image
                 image_source = os.path.join(image_dir, mask_file)
                 # Handle potential extension mismatch (mask .png, img .jpg)
+                # Handle potential extension mismatch (mask .png, img .jpg)
+                # Removed JPG support as per user request to stick to PNG
                 if not os.path.exists(image_source):
-                    if mask_file.endswith('.png'):
-                        alt_name = mask_file.replace('.png', '.jpg')
-                        image_source = os.path.join(image_dir, alt_name)
+                    pass
 
                 if os.path.exists(image_source):
                     src_file = image_source
@@ -224,9 +225,23 @@ def create_categorized_dataset_width(mask_dir, output_base_dir, image_dir=None, 
                     # If image not found, skip
                     continue
 
+            # Force PNG extension for output
+            dest_name = os.path.splitext(dest_name)[0] + '.png'
             dest_path = os.path.join(
                 output_base_dir, category_names[cat_id], dest_name)
-            shutil.copy2(src_file, dest_path)
+
+            # RESIZE LOGIC (256x256)
+            # Load, resize (NEAREST for masks), and save
+            try:
+                with Image.open(src_file) as img:
+                    img = img.convert('L')
+                    # Binarize to remove JPEG artifacts (threshold at 127)
+                    img = img.point(lambda p: 255 if p > 127 else 0)
+                    img = img.resize((256, 256), resample=Image.NEAREST)
+                    img.save(dest_path)
+            except Exception as e:
+                print(f"Error resizing/saving {src_file}: {e}")
+                continue
 
         except Exception as e:
             continue
@@ -268,15 +283,28 @@ def balance_dataset(dataset_dir, category_names):
         print(f"Augmenting {cat}: need {needed} more images...")
 
         cat_dir = os.path.join(dataset_dir, cat)
-        files = file_lists[cat]
+        # Filter out existing augmented files to avoid double-augmentation
+        source_files = [f for f in file_lists[cat] if "_bal_" not in f]
 
-        # Simple random sampling with replacement if needed > files
+        if not source_files:
+            print(
+                f"No source files found for {cat} (all are augmented?). Using all.")
+            source_files = file_lists[cat]
+
+        # Simple random sampling with replacement
         for i in tqdm(range(needed), desc=f"Balancing {cat}"):
-            src_file = random.choice(files)
+            src_file = random.choice(source_files)
             src_path = os.path.join(cat_dir, src_file)
 
             try:
-                img = Image.open(src_path)
+                # Force L mode for masks and Nearest Neighbor for NO ANTI-ALIASING
+                img = Image.open(src_path).convert('L')
+
+                # Binarize to remove JPEG artifacts (threshold at 127)
+                img = img.point(lambda p: 255 if p > 127 else 0)
+
+                # Ensure it is 256x256 (if source wasn't already processed, but safe to force)
+                img = img.resize((256, 256), resample=Image.NEAREST)
 
                 # Apply random augmentation
                 aug_type = random.choice(
@@ -287,17 +315,17 @@ def balance_dataset(dataset_dir, category_names):
                 elif aug_type == 'flip_tb':
                     aug_img = ImageOps.flip(img)
                 elif aug_type == 'rotate90':
-                    aug_img = img.rotate(90, expand=True)
+                    aug_img = img.transpose(Image.ROTATE_90)
                 elif aug_type == 'rotate180':
-                    aug_img = img.rotate(180, expand=True)
+                    aug_img = img.transpose(Image.ROTATE_180)
                 elif aug_type == 'rotate270':
-                    aug_img = img.rotate(270, expand=True)
+                    aug_img = img.transpose(Image.ROTATE_270)
                 else:
                     aug_img = img
 
-                # Save
-                fname, ext = os.path.splitext(src_file)
-                new_name = f"{fname}_bal_{i}{ext}"
+                # Save as PNG to avoid JPEG artifacts on masks
+                fname, _ = os.path.splitext(src_file)
+                new_name = f"{fname}_bal_{i}.png"
                 aug_img.save(os.path.join(cat_dir, new_name))
 
             except Exception as e:
@@ -352,6 +380,12 @@ def main():
 
         # Output directory
         output_dir = os.path.join(OUTPUT_ROOT, subset["out_sub"])
+
+        # Clean output directory to ensure fresh start (removes old artifacts)
+        if os.path.exists(output_dir):
+            print(f"Cleaning existing directory: {output_dir}")
+            shutil.rmtree(output_dir)
+        os.makedirs(output_dir, exist_ok=True)
 
         # 1. Analyze and Plot Histogram
         widths, _ = analyze_dataset(mask_dir)

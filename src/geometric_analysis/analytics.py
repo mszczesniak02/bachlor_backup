@@ -7,6 +7,7 @@ import cv2
 import torch
 import numpy as np
 from scipy import ndimage
+from scipy.ndimage import convolve
 import matplotlib.pyplot as plt
 
 import os
@@ -70,6 +71,7 @@ def calculate_basic_properties(binary_mask: np.ndarray):
         "eccentricity": 0,
         "axis_major_length": 0,
         "axis_minor_length": 0,
+        "aspect_ratio": 0,
         "feret_diameter_max": 0,
         "solidity": 0,
         "extent": 0
@@ -91,6 +93,13 @@ def calculate_basic_properties(binary_mask: np.ndarray):
     results["eccentricity"] = largest_region.eccentricity
     results["axis_major_length"] = largest_region.axis_major_length
     results["axis_minor_length"] = largest_region.axis_minor_length
+
+    if largest_region.axis_minor_length > 0:
+        results["aspect_ratio"] = largest_region.axis_major_length / \
+            largest_region.axis_minor_length
+    else:
+        results["aspect_ratio"] = 0
+
     # Feret diameter requires convex hull which might not be computed by default in all versions,
     # but feret_diameter_max is standard in recent skimage
     try:
@@ -158,6 +167,101 @@ def calculate_width(binary_mask: np.ndarray, skeleton: np.ndarray):
     return stats, dist_transform
 
 
+def calculate_advanced_metrics(skeleton: np.ndarray, binary_mask: np.ndarray):
+    """
+    Analiza zaawansowana: krętość, punkty rozgałęzień i wymiar fraktalny.
+    """
+    # 1. Detekcja punktów rozgałęzień (Branch Points) i końcowych (Endpoints)
+    # Używamy jądra 3x3 do liczenia sąsiadów w szkielecie
+
+    # Prostsza metoda: liczenie sąsiadów (8-connectivity)
+    neighbor_kernel = np.array([[1, 1, 1],
+                                [1, 0, 1],
+                                [1, 1, 1]])
+
+    neighbors = convolve(skeleton.astype(
+        int), neighbor_kernel, mode='constant', cval=0)
+    skeleton_neighbors = neighbors * skeleton
+
+    # Endpoints have exactly 1 neighbor (excluding self) - but convolution includes self if center is 1?
+    # Center is 1 (if skeleton pixel).
+    # With this kernel, a single pixel (isolated) has convolution sum 0? No, checking logic.
+    # If center is 1, neighbor sum includes center if kernel center is 1?
+    # Wait, the provided snippet kernel has 0 at center in 'neighbor_kernel'.
+    # Kernel: [[1,1,1],[1,0,1],[1,1,1]]. Center weight 0.
+    # So convolution sum is exactly number of neighbors.
+
+    endpoints = np.sum(skeleton_neighbors == 1)
+    branch_points = np.sum(skeleton_neighbors > 2)
+
+    # 2. Tortuosity (Krętość)
+    # Przybliżenie: długość szkieletu / odległość euklidesowa skrajnych punktów
+    coords = np.column_stack(np.where(skeleton))
+    if len(coords) > 1:
+        # Znalezienie dwóch najbardziej oddalonych punktów (uproszczenie)
+        # This is n^2 complexity, might be slow for huge skeletons.
+        # Approximation: find bounding box corners or PCA could be faster, but for normal crack images n^2 on skeleton points is okayish (skeleton is sparse).
+        # Actually, let's just pick first and last in list as approximation if order is somehow linear? Skimage skeleton doesn't guarantee order.
+        # Let's stick to provided code logic: dist_matrix between 0 and -1 of coords array.
+        # Since coords are just np.where order (row major), 0 and -1 are top-left-most and bottom-right-most pixels.
+        # This is a decent heuristic for "ends" of the structure.
+        dist_euclid = np.linalg.norm(coords[0] - coords[-1])
+        skeleton_length = np.sum(skeleton)
+        tortuosity = skeleton_length / dist_euclid if dist_euclid > 0 else 1.0
+    else:
+        tortuosity = 1.0
+
+    # 3. Fractal Dimension (Minkowski–Bouligand dimension) - uproszczony box-counting
+    def box_count(img, k):
+        S = np.add.reduceat(
+            np.add.reduceat(img, np.arange(0, img.shape[0], k), axis=0),
+            np.arange(0, img.shape[1], k), axis=1)
+        return len(np.where(S > 0)[0])
+
+    pixels = np.array(binary_mask)
+    if np.sum(pixels) > 0:
+        p = min(pixels.shape)
+        n = 2**np.floor(np.log2(p))
+        pixels_cut = pixels[0:int(n), 0:int(n)]
+
+        scales = np.logspace(1, int(np.log2(n)), num=10,
+                             endpoint=False, base=2).astype(int)
+        # remove duplicate scales
+        scales = np.unique(scales)
+        # remove scales larger than image
+        scales = scales[scales < n]
+        if len(scales) == 0:
+            scales = [1]
+
+        counts = [box_count(pixels_cut, s) for s in scales]
+
+        # Fit line
+        if len(scales) > 1:
+            coeffs = np.polyfit(np.log(scales), np.log(counts), 1)
+            fractal_dim = -coeffs[0]
+        else:
+            fractal_dim = 0
+    else:
+        fractal_dim = 0
+
+    # 4. Additional Metrics
+    skeleton_length = np.sum(skeleton)
+    image_area = binary_mask.size
+
+    branching_intensity = branch_points / \
+        skeleton_length if skeleton_length > 0 else 0.0
+    crack_density = skeleton_length / image_area if image_area > 0 else 0.0
+
+    return {
+        "endpoints_count": int(endpoints),
+        "branch_points_count": int(branch_points),
+        "tortuosity": float(tortuosity),
+        "fractal_dimension": float(fractal_dim),
+        "branching_intensity": float(branching_intensity),
+        "crack_density": float(crack_density)
+    }
+
+
 def analyze_crack_mask(mask: np.ndarray, pixel_size_mm: float = None):
     """
     Main analysis function.
@@ -175,8 +279,12 @@ def analyze_crack_mask(mask: np.ndarray, pixel_size_mm: float = None):
     # 3. Width
     width_stats, dist_map = calculate_width(binary_mask, skeleton)
 
+    # 4. Advanced Metrics
+    advanced_props = calculate_advanced_metrics(skeleton, binary_mask)
+
     analysis_results = {
         "basic": basic_props,
+        "advanced": advanced_props,
         "length_pixels": length_pixels,
         "width_stats": width_stats
     }
@@ -263,14 +371,42 @@ if __name__ == "__main__":
         results, skel, dmap = analyze_crack_mask(
             mask_thresh, pixel_size_mm=0.26)  # assumption: 0.26mm/px
 
-        print("Analysis Results:")
+        print("Analysis Results (Pixels):")
         print(
-            f"  Area: {results['basic']['area_pixels']} px ({results.get('area_mm2', 0):.2f} mm2)")
+            f"  [Basic] Area: {results['basic']['area_pixels']} px ({results.get('area_mm2', 0):.2f} mm2)")
         print(
-            f"  Length: {results['length_pixels']:.1f} px ({results.get('length_mm', 0):.2f} mm)")
+            f"  [Basic] Perimeter: {results['basic']['perimeter_pixels']:.1f} px")
+        print(f"  [Basic] Solidity: {results['basic']['solidity']:.3f}")
         print(
-            f"  Max Width: {results['width_stats']['max_width']:.2f} px ({results.get('width_max_mm', 0):.2f} mm)")
-        print(f"  Solidity: {results['basic']['solidity']:.3f}")
+            f"  [Basic] Aspect Ratio: {results['basic']['aspect_ratio']:.2f}")
+        print(
+            f"  [Basic] Orientation: {results['basic']['orientation']:.2f} rad ({(results['basic']['orientation']*180/np.pi):.1f} deg)")
+        print(
+            f"  [Basic] Eccentricity: {results['basic']['eccentricity']:.3f}")
+        print(f"  [Basic] Extent: {results['basic']['extent']:.3f}")
+        print(
+            f"  [Basic] Feret Max: {results['basic']['feret_diameter_max']:.1f} px")
+
+        print(
+            f"  [Width] Length: {results['length_pixels']:.1f} px ({results.get('length_mm', 0):.2f} mm)")
+        print(
+            f"  [Width] Mean Width: {results['width_stats']['mean_width']:.2f} px ({results.get('width_mean_mm', 0):.2f} mm)")
+        print(
+            f"  [Width] Max Width: {results['width_stats']['max_width']:.2f} px ({results.get('width_max_mm', 0):.2f} mm)")
+        print(
+            f"  [Width] Min Width: {results['width_stats']['min_width']:.2f} px")
+        print(
+            f"  [Width] Std Width: {results['width_stats']['std_width']:.2f} px")
+
+        if 'advanced' in results:
+            adv = results['advanced']
+            print(f"  [Advanced] Tortuosity: {adv['tortuosity']:.3f}")
+            print(f"  [Advanced] Fractal Dim: {adv['fractal_dimension']:.3f}")
+            print(f"  [Advanced] Branch Points: {adv['branch_points_count']}")
+            print(f"  [Advanced] Endpoints: {adv['endpoints_count']}")
+            print(
+                f"  [Advanced] Branching Intensity: {adv['branching_intensity']:.4f}")
+            print(f"  [Advanced] Crack Density: {adv['crack_density']:.4f}")
 
         visualize_analysis(img_rgb, mask_thresh, skel, dmap,
                            results, save_path="analytics_output.png")
@@ -281,6 +417,5 @@ if __name__ == "__main__":
         fake_mask[50:60, 20:80] = 1
 
         results, skel, dmap = analyze_crack_mask(fake_mask)
-        print("Results:", results['basic']
-              ['area_pixels'], results['length_pixels'])
+        print("Results:", results)
         visualize_analysis(None, fake_mask, skel, dmap, results)
