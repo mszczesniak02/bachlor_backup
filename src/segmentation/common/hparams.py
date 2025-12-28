@@ -21,10 +21,10 @@ if ON_COLAB:
 
 else:
     # using local 2GB laptop :|
-    MASK_TRAIN_PATH = r"../../../../datasets/DeepCrack/train_lab"
-    IMG_TRAIN_PATH = r"../../../../datasets/DeepCrack/train_img"
-    MASK_TEST_PATH = r"../../../../datasets/DeepCrack/test_lab"
-    IMG_TEST_PATH = r"../../../../datasets/DeepCrack/test_img"
+    MASK_TRAIN_PATH = r"../../../../datasets/dataset_segmentation/train_lab"
+    IMG_TRAIN_PATH = r"../../../../datasets/dataset_segmentation/train_img"
+    MASK_TEST_PATH = r"../../../../datasets/dataset_segmentation/test_lab"
+    IMG_TEST_PATH = r"../../../../datasets/dataset_segmentation/test_img"
 
     YOLO_DATASET_DIR = r"../../../../datasets/yolo_seg_data"
 
@@ -53,7 +53,7 @@ DEFAULT_EPOCHS = 1  # 3
 UNET_BATCH_SIZE = 16  # 32
 UNET_LEARNING_RATE = 1e-3
 UNET_WEIGHT_DECAY = 1e-4
-UNET_EPOCHS = 15  # 3
+UNET_EPOCHS = 35  # 3
 
 # HYPER PARAMS FOR SEGFORMER SEGMENTATION
 SEGFORMER_BATCH_SIZE = 16  # 32

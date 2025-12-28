@@ -75,13 +75,14 @@ def main():
     dataset = dataset_get(img_path="../../../../datasets/dataset_segmentation/test_img/",
                           mask_path="../../../../datasets/dataset_segmentation/test_lab/", transform=val_transform)
 
-    magic = 30
+    magic = 4
 
     # Custom predict loop for YOLO
     img, msk, out = yolo_predict_single(model, dataset, magic)
 
     # Use standard visualization
-    visualize_model_output(img, msk, out, save_path=None)
+    # visualize_model_output(img, msk, out, save_path=None)
+    plot_effect(img, msk, effect=out, effect_title="Wyjście modelu")
 
 
 if __name__ == "__main__":

@@ -58,9 +58,13 @@ class CrackDataset(Dataset):
         mask_path = self.masks[index]
         mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
 
-        # 3. Binaryzacja (Twoja logika - bardzo dobra dla DeepCrack)
-        # DeepCrack ma wartości 0 i 255. Zamieniamy na 0 i 1.
-        mask = (mask > 127).astype(np.uint8)
+        # 3. Binaryzacja (Robusta)
+        # Obsługa masek [0, 255] oraz [0, 1]
+        max_val = mask.max()
+        if max_val > 1:
+            mask = mask / 255.0
+
+        mask = (mask > 0.5).astype(np.float32)
 
         # 4. Augmentacje (Albumentations)
         if self.transform:

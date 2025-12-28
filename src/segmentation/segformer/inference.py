@@ -31,11 +31,11 @@ def main():
     dataset = dataset_get(img_path="../../../../datasets/dataset_segmentation/test_img/",
                           mask_path="../../../../datasets/dataset_segmentation/test_lab/", transform=val_transform)
 
-    magic = 2
+    magic = 4
 
     img, msk, out = model_predict(model, dataset, magic)
 
-    plot_effect(img, msk, effect=out, effect_title="output")
+    plot_effect(img, msk, effect=out, effect_title="Wyjście modelu")
 
 
 if __name__ == "__main__":

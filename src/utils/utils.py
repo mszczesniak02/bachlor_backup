@@ -58,9 +58,9 @@ def plot_effect(image, mask, effect=[], effect_title="Transform"):
     if len(effect) != 0:
         fig, ax = plt.subplots(1, 3)
         ax[0].imshow(image, cmap="gray")
-        ax[0].set_title("Image")
+        ax[0].set_title("Dane wejściowe")
         ax[1].imshow(mask, cmap="gray")
-        ax[1].set_title("Mask")
+        ax[1].set_title("Maska")
         ax[2].imshow(effect, cmap="gray")
         ax[2].set_title(effect_title)
     else:

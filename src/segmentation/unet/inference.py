@@ -30,7 +30,7 @@ def main():
     dataset = dataset_get(img_path="../../../../datasets/dataset_segmentation/test_img/",
                           mask_path="../../../../datasets/dataset_segmentation/test_lab/", transform=val_transform)
 
-    magic = 2
+    magic = 4
 
     img, msk, out = model_predict(model, dataset, magic)
 
