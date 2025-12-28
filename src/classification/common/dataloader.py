@@ -24,7 +24,6 @@ class CrackDataset(Dataset):
             class_dir = self.root_dir / class_name / "masks"
 
             if not class_dir.exists():
-                # Fallback to checking class directory implementation
                 class_dir = self.root_dir / class_name
                 if not class_dir.exists():
                     continue
@@ -39,7 +38,6 @@ class CrackDataset(Dataset):
     def __getitem__(self, idx):
         img_path, label = self.samples[idx]
 
-        # Load as RGB (3 channels) to satisfy model requirements
         image = np.array(Image.open(img_path).convert('RGB'))
 
         if self.transform:

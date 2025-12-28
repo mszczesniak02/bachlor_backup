@@ -136,7 +136,7 @@ def main():
 
     print("Loading model...")
     # Using efficienet by default as this is in efficienet folder
-    model = model_load("efficienet", filepath=MODEL_PATH, device=device)
+    model = model_load("efficienet", filepath="/home/krzeslaav/Projects/bachlor/models/classification/new/efficientnet_f1_0.9029_epoch13.pth", device=device)
     model.eval()
     print(f"Model loaded from: {MODEL_PATH}")
 
