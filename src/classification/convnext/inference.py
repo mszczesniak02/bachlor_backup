@@ -108,43 +108,52 @@ def visualize_grid_by_class(model, dataset, device, class_names):
                 is_correct = (pred_cls == cls_idx)
                 color = 'green' if is_correct else 'red'
 
-                title = f"GT: {cls_name}\nPred: {class_names[pred_cls]}\n({conf*100:.1f}%)"
+                title = f"Prawdziwa: {cls_name}\nPredykcja: {class_names[pred_cls]}\n({conf*100:.1f}%)"
                 # ax.set_title(title, color=color, fontsize=10, fontweight='bold')
 
                 # Draw text on image
                 ax.text(10, 10, title, color=color, fontsize=8, fontweight='bold', 
                         bbox=dict(facecolor='white', alpha=0.7, edgecolor='none'), va='top', ha='left')
             else:
-                ax.text(0.5, 0.5, "No Sample", ha='center')
+                ax.text(0.5, 0.5, "Brak próbki", ha='center')
 
             ax.axis('off')
 
             # Label the row on the left
             if col_idx == 0:
-                ax.text(-0.2, 0.5, f"Class {cls_idx}\n{cls_name}", rotation=90, 
+                ax.text(-0.2, 0.5, f"Klasa {cls_idx}\n{cls_name}", rotation=90, 
                         va='center', ha='right', transform=ax.transAxes, fontsize=12, fontweight='bold')
 
     plt.tight_layout()
     plt.show()
 
 def main():
-    class_names = ["Hairline", "Small", "Medium", "Large"] # Adjust based on 4 classes mapping
+    class_names = ["Włosowate", "Małe", "Średnie", "Duże"] # Adjust based on 4 classes mapping
     if NUM_CLASSES != len(class_names):
         print(f"Warning: Hparams NUM_CLASSES ({NUM_CLASSES}) != len(class_names) ({len(class_names)})")
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    print("Loading model...")
-    # Using efficienet by default as this is in efficienet folder
-    model = model_load("efficienet", filepath="/home/krzeslaav/Projects/bachlor/models/classification/new/efficientnet_f1_0.9029_epoch13.pth", device=device)
-    model.eval()
-    print(f"Model loaded from: {MODEL_PATH}")
+    model_name = "convnet"
+    model_path = "/home/krzeslaav/Projects/bachlor/model_tests/FULL_DATASET/classification/newer/convnext/convnext.pth"
 
     # Load dataset structure only
     test_dataset = dataset_get(TEST_DIR, image_size=IMAGE_SIZE, is_training=False)
 
-    print("\nVisualizing predictions grid...")
-    visualize_grid_by_class(model, test_dataset, device, class_names)
+    print(f"\nProcessing {model_name}...")
+    print("Loading model...")
+
+    try:
+        model = model_load(model_name, filepath=model_path, device=device)
+        model.eval()
+        print(f"Model loaded from: {model_path}")
+
+        print(f"Visualizing predictions grid for {model_name}...")
+        visualize_grid_by_class(model, test_dataset, device, class_names)
+    except Exception as e:
+        print(f"Failed to load or process {model_name}: {e}")
+
+
 
 
 if __name__ == "__main__":

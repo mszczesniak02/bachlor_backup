@@ -203,8 +203,8 @@ def train_model(writer, epochs: int = UNET_EPOCHS, batch_size: int = UNET_BATCH_
 
     model = model_init(model_name="unet").to(device)
 
-    criterion = DiceBCELoss()
-    print("Criterion initialized: DiceBCELoss")
+    criterion = TverskyLoss(alpha=0.3, beta=0.7)
+    print("Criterion initialized: Tversky Loss")
 
     optimizer = torch.optim.Adam(
         model.parameters(),
