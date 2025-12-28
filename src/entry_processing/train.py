@@ -127,7 +127,6 @@ def validate(model, loader, criterion, device):
 
 def train_model():
     timestamp = datetime.now().strftime('%Y%m%d_%H%M')
-    # Use LOG_DIR from hparams or define local default
     log_dir = f"{LOG_DIR}/{timestamp}" if 'LOG_DIR' in globals(
     ) else f"runs/entry_processing/{timestamp}"
     writer = SummaryWriter(log_dir)

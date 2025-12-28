@@ -1,4 +1,4 @@
-
+#autopep8: off
 import sys
 import os
 import torch
@@ -11,7 +11,33 @@ from ultralytics import YOLO
 import segmentation_models_pytorch as smp               # preset model
 import torchvision.models as models
 
-from hparams import *
+#hparams
+from torch import cuda
+import os
+SEGFORMER_PATH = r"/home/krzeslaav/Projects/bachlor/model_tests/FULL_DATASET/segformermodel_segformer_0.5864474233337809.pth"
+UNET_PATH = r"/home/krzeslaav/Projects/bachlor/model_tests/FULL_DATASET/model_unet_0.5960555357910763.pth"
+YOLO_PATH = r"/home/krzeslaav/Projects/bachlor/model_tests/FULL_DATASET/segmentation/yolo_big/runs/segment/yolov8m_crack_seg/weights/best.pt"
+EFFICIENTNET_PATH = r"/home/krzeslaav/Projects/bachlor/model_tests/FULL_DATASET/classification/efficientnet/model_f1_0.9171_epoch14.pth"
+CONVNEXT_PATH = r"/home/krzeslaav/Projects/bachlor/model_tests/FULL_DATASET/classification/convnext/model_f1_0.9258_epoch9.pth"
+DOMAIN_CONTROLLER_PATH = r"/home/krzeslaav/Projects/bachlor/models/entry_classificator/best_model.pth"
+# --- Config ---
+OUTPUT_IMAGE_SIZE = 512
+DEVICE = "cpu" if cuda.is_available() else "cpu"
+NUM_CLASSES = 4
+IMAGE_PATH_0 = r"/home/krzeslaav/Projects/bachlor/image_test_0.jpg"
+IMAGE_PATH_1 = r"/home/krzeslaav/Projects/bachlor/image_test_1.jpg"
+
+# --- Dataset ---
+SEG_IMG_TEST_PATH = r"/home/krzeslaav/Projects/datasets/dataset_segmentation/test_img"
+SEG_MASK_TEST_PATH = r"/home/krzeslaav/Projects/datasets/dataset_segmentation/test_lab"
+
+CLASS_IMG_TEST_PATH_ROOT = r"/home/krzeslaav/Projects/datasets/classification_width/test_img"
+
+
+# hpaams end
+
+# from hparams import *
+
 import matplotlib.pyplot as plt
 
 
@@ -119,14 +145,14 @@ def load_domain_controller(filepath=DOMAIN_CONTROLLER_PATH, device=DEVICE):
     return model
 
 
-def load_all_models():
-    model_segformer = load_segformer()
-    model_unet = load_unet()
-    model_yolo = load_yolo()
-    model_efficientnet = load_efficientnet()
-    model_convnext = load_convnext()
-    model_domain_controller = None  # load_domain_controller()
-    print("All models loaded.")
+def load_all_models(device=DEVICE):
+    model_segformer = load_segformer(device=device)
+    model_unet = load_unet(device=device)
+    model_yolo = load_yolo(device=device)
+    model_efficientnet = load_efficientnet(device=device)
+    model_convnext = load_convnext(device=device)
+    model_domain_controller = load_domain_controller(device=device)
+    print(f"All models loaded on {device}.")
     return model_segformer, model_unet, model_yolo, model_efficientnet, model_convnext, model_domain_controller
 
 
@@ -317,8 +343,35 @@ def predict(filepath, model_segformer, model_unet, model_yolo, model_efficientne
     visualize_prediction(img_numpy, final_mask, binary_mask,
                          category, masks_dict, normalized_weights)
 
+    # Save outputs
+    output_dir = "output_predictions"
+    os.makedirs(output_dir, exist_ok=True)
+
+    base_name = os.path.splitext(os.path.basename(filepath))[0]
+
+    # Save individual masks
+    for name, mask in masks_dict.items():
+        if mask is not None:
+            mask_uint8 = (mask * 255).astype(np.uint8)
+            save_path = os.path.join(output_dir, f"{base_name}_{name}.png")
+            cv2.imwrite(save_path, mask_uint8)
+            print(f"Saved {name} mask to {save_path}")
+
+    # Save ensemble result
+    final_mask_uint8 = (final_mask * 255).astype(np.uint8)
+    save_path_ensemble = os.path.join(output_dir, f"{base_name}_ensemble.png")
+    cv2.imwrite(save_path_ensemble, final_mask_uint8)
+    print(f"Saved ensemble mask to {save_path_ensemble}")
+
+    # Save binary ensemble result
+    binary_mask_uint8 = (binary_mask * 255).astype(np.uint8)
+    save_path_binary = os.path.join(
+        output_dir, f"{base_name}_ensemble_binary.png")
+    cv2.imwrite(save_path_binary, binary_mask_uint8)
+    print(f"Saved binary ensemble mask to {save_path_binary}")
+
 
 if __name__ == "__main__":
     model_segformer, model_unet, model_yolo, model_efficientnet, model_convnext, model_domain_controller = load_all_models()
-    predict(IMAGE_PATH_1, model_segformer, model_unet, model_yolo,
+    predict(IMAGE_PATH_0, model_segformer, model_unet, model_yolo,
             model_efficientnet, model_convnext, model_domain_controller)

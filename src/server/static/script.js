@@ -74,7 +74,7 @@ uploadForm.addEventListener('submit', async (e) => {
         const data = await response.json();
 
         if (data.success) {
-            displayResult(data.info);
+            displayResult(data);
             showSuccess('Analiza ukończona pomyślnie!');
         } else {
             showError(data.error || 'Błąd podczas analizy');
@@ -86,64 +86,118 @@ uploadForm.addEventListener('submit', async (e) => {
     }
 });
 
-function displayResult(info) {
+function displayResult(data) {
+    const info = data.info;
+    const analysis = data.analysis;
+    const images = data.images;
+    
     let html = '';
 
-    // Miniaturka z serwera
-    if (info.thumbnail) {
-        html += `<div class="thumbnail-section">
-            <div class="preview-header">📊 Wyniki Analizy</div>
-            <img src="${info.thumbnail}" alt="Analiza ${info.filename}" />
+    // --- Images Section ---
+    if (images && (images.overlay || images.heatmap || images.mask)) {
+        html += '<div class="images-container" style="display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px;">';
+        
+        if (images.overlay) {
+            html += `<div class="thumbnail-section" style="flex: 0 0 300px;">
+                <div class="preview-header">Overlay</div>
+                <img src="${images.overlay}" alt="Overlay" />
+            </div>`;
+        }
+        if (images.heatmap) {
+            html += `<div class="thumbnail-section" style="flex: 0 0 300px;">
+                <div class="preview-header">Heatmap</div>
+                <img src="${images.heatmap}" alt="Heatmap" />
+            </div>`;
+        }
+        if (images.mask) {
+            html += `<div class="thumbnail-section" style="flex: 0 0 300px;">
+                <div class="preview-header">Mask</div>
+                <img src="${images.mask}" alt="Mask" />
+            </div>`;
+        }
+        html += '</div>';
+    } else if (info.thumbnail) {
+         html += `<div class="thumbnail-section">
+            <div class="preview-header">Podgląd</div>
+            <img src="${info.thumbnail}" alt="Podgląd" />
         </div>`;
     }
 
-    html += `<div class="result-item">
-        <div class="result-label">Nazwa pliku</div>
-        <div class="result-value">${info.filename}</div>
-    </div>`;
-
-    if (info.size) {
-        html += `<div class="result-item">
+    // --- Basic Info ---
+    html += `<div class="result-group">
+        <h3 style="color: #667eea; margin-bottom: 10px;">📄 Plik</h3>
+        <div class="result-item">
+            <div class="result-label">Nazwa</div>
+            <div class="result-value">${info.filename}</div>
+        </div>
+        <div class="result-item">
             <div class="result-label">Wymiary</div>
             <div class="result-value">${info.size.width} × ${info.size.height} px</div>
-        </div>`;
+        </div>
+    </div>`;
 
-        html += `<div class="result-item">
-            <div class="result-label">Liczba pikseli</div>
-            <div class="result-value">${info.size.total_pixels.toLocaleString()}</div>
-        </div>`;
-    }
-
-    if (info.format) {
-        html += `<div class="result-item">
-            <div class="result-label">Format</div>
-            <div class="result-value">${info.format}</div>
-        </div>`;
-    }
-
-    if (info.color_mode) {
-        html += `<div class="result-item">
-            <div class="result-label">Tryb kolorów</div>
-            <div class="result-value">${info.color_mode}</div>
+    // --- Domain Controller ---
+    if (analysis && analysis.domain_controller) {
+        const dc = analysis.domain_controller;
+        const color = dc.is_crack ? '#c33' : '#2c6e2c';
+        html += `<div class="result-group" style="margin-top: 20px;">
+            <h3 style="color: #667eea; margin-bottom: 10px;">🔍 Detekcja</h3>
+            <div class="result-item" style="border-left-color: ${color};">
+                <div class="result-label">Status</div>
+                <div class="result-value" style="color: ${color}; font-weight: bold;">
+                    ${dc.label} (${(dc.confidence * 100).toFixed(1)}%)
+                </div>
+            </div>
         </div>`;
     }
 
-    if (info.brightness) {
-        html += `<div class="result-item">
-            <div class="result-label">Jasność średnia</div>
-            <div class="result-value">${info.brightness.mean} / 255</div>
-        </div>`;
-
-        html += `<div class="result-item">
-            <div class="result-label">Zakres jasności</div>
-            <div class="result-value">${info.brightness.min} - ${info.brightness.max}</div>
+    // --- Classification ---
+    if (analysis && analysis.classification) {
+        const cl = analysis.classification;
+        html += `<div class="result-group" style="margin-top: 20px;">
+            <h3 style="color: #667eea; margin-bottom: 10px;">🏷️ Klasyfikacja</h3>
+            <div class="result-item">
+                <div class="result-label">Kategoria</div>
+                <div class="result-value">${cl.class_name}</div>
+            </div>
+             <div class="result-item">
+                <div class="result-label">Pewność</div>
+                <div class="result-value">${(cl.confidence * 100).toFixed(1)}%</div>
+            </div>
         </div>`;
     }
 
-    if (info.file_size_kb !== undefined) {
-        html += `<div class="result-item">
-            <div class="result-label">Rozmiar pliku</div>
-            <div class="result-value">${info.file_size_kb} KB</div>
+    // --- Geometric Analysis ---
+    if (analysis && analysis.geometric) {
+        const geo = analysis.geometric;
+        const basic = geo.basic || {};
+        const width = geo.width_stats || {};
+        
+        html += `<div class="result-group" style="margin-top: 20px;">
+            <h3 style="color: #667eea; margin-bottom: 10px;">📐 Geometria</h3>
+            
+            <div class="result-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div class="result-item">
+                    <div class="result-label">Długość</div>
+                    <div class="result-value">${geo.length_pixels ? geo.length_pixels.toFixed(1) : 0} px</div>
+                </div>
+                <div class="result-item">
+                    <div class="result-label">Szerokość (Średnia)</div>
+                    <div class="result-value">${width.mean_width ? width.mean_width.toFixed(2) : 0} px</div>
+                </div>
+                 <div class="result-item">
+                    <div class="result-label">Szerokość (Max)</div>
+                    <div class="result-value">${width.max_width ? width.max_width.toFixed(2) : 0} px</div>
+                </div>
+                <div class="result-item">
+                    <div class="result-label">Powierzchnia</div>
+                    <div class="result-value">${basic.area_pixels ? basic.area_pixels.toFixed(0) : 0} px²</div>
+                </div>
+                 <div class="result-item">
+                    <div class="result-label">Solidność</div>
+                    <div class="result-value">${basic.solidity ? basic.solidity.toFixed(3) : 0}</div>
+                </div>
+            </div>
         </div>`;
     }
 

@@ -23,11 +23,6 @@ def model_init(model_name: str):
         weights = models.ConvNeXt_Tiny_Weights.DEFAULT
         model = models.convnext_tiny(weights=weights)
 
-        # ConvNeXt classifier structure:
-        # (0): LayerNorm2d((768,), eps=1e-06, elementwise_affine=True)
-        # (1): Flatten(start_dim=1, end_dim=-1)
-        # (2): Linear(in_features=768, out_features=1000, bias=True)
-
         num_features = model.classifier[2].in_features
         model.classifier[2] = nn.Linear(num_features, NUM_CLASSES)
 

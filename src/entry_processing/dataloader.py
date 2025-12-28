@@ -26,7 +26,6 @@ class EntryDataset(Dataset):
         self.transform = transform
 
         self.samples = []
-        # 'crack' and 'no_crack' are the folder names
         self.class_names = ["no_crack", "crack"]
         self.class_to_idx = {cls_name: i for i,
                              cls_name in enumerate(self.class_names)}
@@ -40,7 +39,6 @@ class EntryDataset(Dataset):
 
             class_idx = self.class_to_idx[class_name]
 
-            # Recursively find images if needed, but simple iteration is usually enough
             for img_file in class_dir.iterdir():
                 if img_file.suffix.lower() in ['.jpg', '.jpeg', '.png', '.bmp', '.tif']:
                     self.samples.append((str(img_file), class_idx))
@@ -66,8 +64,6 @@ class EntryDataset(Dataset):
 
         except Exception as e:
             print(f"Error loading {img_path}: {e}")
-            # Return a dummy tensor or handle error appropriately
-            # For simplicity, returning zeros (not ideal but avoids crash)
             return torch.zeros((3, ENTRY_IMAGE_SIZE, ENTRY_IMAGE_SIZE)), label
 
 
@@ -109,7 +105,6 @@ def dataloader_init(batch_size: int = ENTRY_BATCH_SIZE) -> tuple[DataLoader, Dat
     train_dl = dataloader_get(
         TRAIN_DIR, batch_size=batch_size, is_training=True)
 
-    # Validation set usually doesn't need shuffling, but can be helpful
     val_dl = dataloader_get(
         VAL_DIR, batch_size=batch_size, is_training=False)
 

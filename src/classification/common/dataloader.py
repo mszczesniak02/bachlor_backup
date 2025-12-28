@@ -57,7 +57,6 @@ class CrackDataset(Dataset):
 
 def get_transforms(image_size=DEFAULT_IMAGE_SIZE, is_training=True):
     transforms_list = [
-        # Zwiększona rozdzielczość jest kluczowa dla ConvNeXt przy cienkich liniach
         A.Resize(height=image_size, width=image_size, interpolation=1),
     ]
 
@@ -65,7 +64,7 @@ def get_transforms(image_size=DEFAULT_IMAGE_SIZE, is_training=True):
         transforms_list.extend([
             A.HorizontalFlip(p=0.5),
             A.VerticalFlip(p=0.5),
-            A.RandomRotate90(p=0.5),  # Bezpieczna rotacja dla masek
+            A.RandomRotate90(p=0.5),
         ])
 
     transforms_list.extend([
@@ -96,7 +95,6 @@ def dataloader_get(root_dir, batch_size=DEFAULT_BATCH_SIZE, image_size=DEFAULT_I
 
 
 def dataloader_init(batch_size: int = DEFAULT_BATCH_SIZE, image_size: int = DEFAULT_IMAGE_SIZE) -> tuple[DataLoader, DataLoader]:
-    # Using global TRAIN_DIR and TEST_DIR from hparams
     train_dl = dataloader_get(
         TRAIN_DIR, batch_size=batch_size, image_size=image_size, is_training=True)
     valid_dl = dataloader_get(

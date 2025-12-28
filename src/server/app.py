@@ -1,3 +1,4 @@
+#autopep8: off
 from flask import Flask, request, jsonify, render_template
 from werkzeug.utils import secure_filename
 import os
@@ -6,6 +7,14 @@ import numpy as np
 from PIL import Image
 import base64
 from io import BytesIO
+
+import sys
+
+# Add src to path to allow imports from sibling packages
+sys.path.append(os.path.abspath(
+    os.path.join(os.path.dirname(__file__), '../')))
+
+from geometric_analysis.pipeline import CrackAnalysisPipeline
 
 # Konfiguracja
 UPLOAD_FOLDER = 'uploads'
@@ -19,10 +28,49 @@ app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = MAX_FILE_SIZE
 
+# Initialize Pipeline (Loads models into memory)
+print("⏳ Loading AI Models...")
+PIPELINE = CrackAnalysisPipeline()
+print("✅ AI Models Loaded!")
+
 
 def allowed_file(filename):
     """Sprawdź czy plik ma dozwoloną rozszerzenie"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def image_to_base64(img_numpy):
+    """Encodes numpy image (RGB) to base64 string"""
+    try:
+        # Check if float, convert to uint8
+        if img_numpy.dtype != np.uint8:
+            img_numpy = (img_numpy * 255).astype(np.uint8)
+
+        img_pil = Image.fromarray(img_numpy)
+        buffer = BytesIO()
+        img_pil.save(buffer, format='PNG')
+        buffer.seek(0)
+        return f"data:image/png;base64,{base64.b64encode(buffer.getvalue()).decode()}"
+    except Exception as e:
+        print(f"Error encoding image: {e}")
+        return None
+
+
+def convert_numpy_types(obj):
+    """
+    Recursively converts NumPy types to native Python types for JSON serialization.
+    """
+    if isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, dict):
+        return {k: convert_numpy_types(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_numpy_types(i) for i in obj]
+    return obj
 
 
 def analyze_image(filepath):
@@ -30,55 +78,62 @@ def analyze_image(filepath):
     Analizuje obraz i zwraca informacje
     """
     try:
+        # Basic File Info
+        file_stats = {
+            'filename': Path(filepath).name,
+            'file_size_kb': round(os.path.getsize(filepath) / 1024, 2)
+        }
+
         with Image.open(filepath) as img:
-            # Podstawowe informacje
-            width, height = img.size
-            format_img = img.format
-            mode = img.mode
-
-            # Konwertuj do grayscale dla analizy
-            img_gray = img.convert('L')
-            pixels = np.array(img_gray)
-
-            # Statystyki
-            mean_brightness = float(np.mean(pixels))
-            std_brightness = float(np.std(pixels))
-            min_brightness = int(np.min(pixels))
-            max_brightness = int(np.max(pixels))
-
-            # Stwórz miniaturkę
-            thumbnail_size = (200, 200)
-            img_thumbnail = img.copy()
-            img_thumbnail.thumbnail(thumbnail_size, Image.Resampling.LANCZOS)
-
-            # Konwertuj miniaturkę do base64
-            buffer = BytesIO()
-            img_thumbnail.save(buffer, format='PNG')
-            buffer.seek(0)
-            thumbnail_b64 = base64.b64encode(buffer.getvalue()).decode()
-
-            return {
-                'success': True,
-                'info': {
-                    'filename': Path(filepath).name,
-                    'size': {
-                        'width': width,
-                        'height': height,
-                        'total_pixels': width * height
-                    },
-                    'format': format_img,
-                    'color_mode': mode,
-                    'brightness': {
-                        'mean': round(mean_brightness, 2),
-                        'std': round(std_brightness, 2),
-                        'min': min_brightness,
-                        'max': max_brightness
-                    },
-                    'file_size_kb': round(os.path.getsize(filepath) / 1024, 2),
-                    'thumbnail': f'data:image/png;base64,{thumbnail_b64}'
-                }
+            file_stats['size'] = {
+                'width': img.width, 
+                'height': img.height,
+                'total_pixels': img.width * img.height
             }
+            file_stats['format'] = img.format
+            file_stats['mode'] = img.mode
+
+        # Run AI Analysis
+        print(f"Running pipeline on {filepath}...")
+        results, feature_images = PIPELINE.run_pipeline(filepath)
+
+        # Prepare response
+        response_data = {
+            'success': True,
+            'info': file_stats,
+            'analysis': {
+                'domain_controller': results.get('domain_controller'),
+                'segmentation': results.get('segmentation_completed'),
+                'classification': results.get('classification'),
+                'geometric': results.get('geometric_analysis')
+            },
+            'images': {}
+        }
+
+        # Encode result images
+        if feature_images:
+            if 'original' in feature_images:
+                response_data['images']['original'] = image_to_base64(
+                    feature_images['original'])
+            if 'overlay' in feature_images:
+                response_data['images']['overlay'] = image_to_base64(
+                    feature_images['overlay'])
+            if 'heatmap' in feature_images:
+                response_data['images']['heatmap'] = image_to_base64(
+                    feature_images['heatmap'])
+            if 'binary_mask' in feature_images:
+                response_data['images']['mask'] = image_to_base64(
+                    feature_images['binary_mask'])
+
+        # Sanitize for JSON
+        response_data = convert_numpy_types(response_data)
+
+        return response_data
+
     except Exception as e:
+        print(f"Error in analyze_image: {e}")
+        import traceback
+        traceback.print_exc()
         return {
             'success': False,
             'error': str(e)
