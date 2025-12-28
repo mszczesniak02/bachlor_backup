@@ -62,8 +62,11 @@ def analyze_dataset(mask_dir):
         print(f"Error: Directory {mask_dir} not found.")
         return [], []
 
-    mask_files = [f for f in os.listdir(
-        mask_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+    mask_files = [
+        f for f in os.listdir(mask_dir)
+        if f.lower().endswith(('.png', '.jpg', '.jpeg'))
+        and not any(x in f.lower() for x in ['eugene', 'florian', 'volker'])
+    ]
 
     widths = []
     files_with_width = []
@@ -187,8 +190,11 @@ def create_categorized_dataset_width(mask_dir, output_base_dir, image_dir=None, 
     for cat_name in category_names:
         os.makedirs(os.path.join(output_base_dir, cat_name), exist_ok=True)
 
-    mask_files = [f for f in os.listdir(
-        mask_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+    mask_files = [
+        f for f in os.listdir(mask_dir)
+        if f.lower().endswith(('.png', '.jpg', '.jpeg'))
+        and not any(x in f.lower() for x in ['eugene', 'florian', 'volker'])
+    ]
     category_counts = {i: 0 for i in range(4)}
 
     print(f"Categorizing {len(mask_files)} files from {mask_dir}...")
@@ -263,8 +269,11 @@ def balance_dataset(dataset_dir, category_names):
 
     for cat in category_names:
         cat_dir = os.path.join(dataset_dir, cat)
-        files = [f for f in os.listdir(
-            cat_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+        files = [
+            f for f in os.listdir(cat_dir)
+            if f.lower().endswith(('.png', '.jpg', '.jpeg'))
+            and not any(x in f.lower() for x in ['eugene', 'florian', 'volker'])
+        ]
         counts[cat] = len(files)
         file_lists[cat] = files
         if len(files) > max_count:
