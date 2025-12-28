@@ -21,7 +21,7 @@ train_transform = A.Compose([
         brightness_limit=0.2, contrast_limit=0.2, p=0.5),
     A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2(),
-])
+], is_check_shapes=False)
 
 # Dla walidacji tylko resize i normalizacja (bez losowości!)
 val_transform = A.Compose([
