@@ -10,17 +10,15 @@ from segmentation.common.hparams import *
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 train_transform = A.Compose([
-    # ZMIANA: Dodano always_apply=True, aby wymusić padding na każdym zdjęciu < 512
+    # ZMIANA: p=1.0 zamiast always_apply, usuniecie warningow
     A.PadIfNeeded(
         min_height=512,
         min_width=512,
         border_mode=cv2.BORDER_CONSTANT,
-        value=0,
-        mask_value=0,
-        always_apply=True
+        p=1.0
     ),
 
-    A.RandomCrop(height=512, width=512, always_apply=True),
+    A.RandomCrop(height=512, width=512, p=1.0),
 
     # ... reszta augmentacji bez zmian ...
     A.HorizontalFlip(p=0.5),
@@ -41,11 +39,9 @@ val_transform = A.Compose([
         min_height=512,
         min_width=512,
         border_mode=cv2.BORDER_CONSTANT,
-        value=0,
-        mask_value=0,
-        always_apply=True
+        p=1.0
     ),
-    A.CenterCrop(height=512, width=512, always_apply=True),
+    A.CenterCrop(height=512, width=512, p=1.0),
 
     A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2(),
