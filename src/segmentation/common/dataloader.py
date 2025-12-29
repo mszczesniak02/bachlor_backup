@@ -10,15 +10,8 @@ from segmentation.common.hparams import *
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 train_transform = A.Compose([
-    # ZMIANA: p=1.0 zamiast always_apply, usuniecie warningow
-    A.PadIfNeeded(
-        min_height=512,
-        min_width=512,
-        border_mode=cv2.BORDER_CONSTANT,
-        p=1.0
-    ),
-
-    A.RandomCrop(height=512, width=512, p=1.0),
+    # ZMIANA: Resize zamiast PadIfNeeded+Crop, aby uniknąć błędów wymiarów
+    A.Resize(height=512, width=512, p=1.0),
 
     # ... reszta augmentacji bez zmian ...
     A.HorizontalFlip(p=0.5),
@@ -35,13 +28,7 @@ train_transform = A.Compose([
 
 # To samo dla walidacji!
 val_transform = A.Compose([
-    A.PadIfNeeded(
-        min_height=512,
-        min_width=512,
-        border_mode=cv2.BORDER_CONSTANT,
-        p=1.0
-    ),
-    A.CenterCrop(height=512, width=512, p=1.0),
+    A.Resize(height=512, width=512, p=1.0),
 
     A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2(),
