@@ -16,7 +16,7 @@ def model_init(model_name: str):
             encoder_weights="imagenet",
             in_channels=3,
             classes=1,
-            decoder_attention_type="scse",
+            decoder_attention_type=None,
             decoder_use_batchnorm=True
         )
         return model
