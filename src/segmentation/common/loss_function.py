@@ -61,15 +61,35 @@ class DiceLoss(torch.nn.Module):
 
 
 class DiceBCELoss(torch.nn.Module):
-    def __init__(self, weight_bce=0.5, weight_dice=0.5):
+    def __init__(self, weight_bce=0.5, weight_dice=0.5, pos_weight=None):
+        """
+        Args:
+            weight_bce: waga składowej BCE w całkowitej stracie
+            weight_dice: waga składowej Dice w całkowitej stracie
+            pos_weight (float, optional): Waga dla klasy pozytywnej (pęknięcia).
+                                          Zalecana wartość: 10.0 - 50.0.
+        """
         super(DiceBCELoss, self).__init__()
         self.weight_bce = weight_bce
         self.weight_dice = weight_dice
+        self.pos_weight = pos_weight
 
     def forward(self, inputs, targets, smooth=1e-6):
-        # Stabilne numerycznie BCE
-        bce_loss = F.binary_cross_entropy_with_logits(inputs, targets)
+        # inputs: Logity (bez sigmoid)
+        # targets: Maski binarne (0 lub 1)
 
+        # 1. Obsługa ważonego BCE (Class Imbalance Protocol)
+        if self.pos_weight is not None:
+            # Tworzymy tensor wagi na tym samym urządzeniu (CPU/CUDA) co wejście
+            weight_tensor = torch.tensor(
+                [self.pos_weight], device=inputs.device)
+            bce_loss = F.binary_cross_entropy_with_logits(
+                inputs, targets, pos_weight=weight_tensor
+            )
+        else:
+            bce_loss = F.binary_cross_entropy_with_logits(inputs, targets)
+
+        # 2. Składowa Dice (działa na prawdopodobieństwach)
         inputs_sig = torch.sigmoid(inputs).view(-1)
         targets_flat = targets.view(-1)
 
@@ -78,6 +98,7 @@ class DiceBCELoss(torch.nn.Module):
             (inputs_sig.sum() + targets_flat.sum() + smooth)
         dice_loss = 1 - dice_score
 
+        # 3. Suma ważona
         return self.weight_bce * bce_loss + self.weight_dice * dice_loss
 
 

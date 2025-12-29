@@ -1,119 +1,92 @@
-#autopep8:off
+# autopep8: off
 import sys
 import os
-# Add project root to sys.path
-sys.path.append(os.path.abspath(
-    os.path.join(os.path.dirname(__file__), '../../')))
-
-import matplotlib.pyplot as plt
-from ultralytics import YOLO
-from tqdm import tqdm
+import torch
 import cv2
 import numpy as np
-import time
-from utils.utils import seed_everything
+import torch.nn.functional as F
+from ultralytics import YOLO
+
+original_sys_path = sys.path.copy()
+# moving to "segmentation/"
+sys.path.append(os.path.abspath(
+    os.path.join(os.path.dirname(__file__), '../../')))
+# importing commons
+from segmentation.common.dataloader import *
 from segmentation.common.hparams import *
-# autopep8:on
+# importing utils
+from utils.utils import *
+# go back to the origin path
+sys.path = original_sys_path
+# normal imports
 
+# Assuming standard path based on fine_tuning.py naming
+model_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "runs/segment/yolov12m_crack_seg/weights/best.pt"))
+model_path_default = r"yolo11n.pt" # Fallback/Alternative found in dir
 
-def evaluate_init(model_path):
-    """Load model for inference."""
-    model = YOLO(model_path)
-    return model
+def yolo_predict_single(model, dataset, index=0):
+    """
+    Runs inference on a single image using YOLO.
+    """
+    # 1. Get raw item from dataset
+    # Dataset returns (tensor_img, tensor_mask)
+    # Tensor img is normalized and CHW.
+    t_img, t_msk = dataset[index]
 
+    # 2. Convert to Numpy for YOLO input and Visualization
+    # We MUST denormalize for YOLO because it expects standard image values (0-255 or 0-1) 
+    # and "ten2np(..., denormalize=True)" gives us exactly that (RGB, 0-255).
+    img_numpy = ten2np(t_img, denormalize=True)
+    mask_gt = ten2np(t_msk) # Ground truth mask
 
-def predict_single(model, img_path, device='cpu'):
-    """Run inference on a single image."""
-    results = model.predict(
-        source=img_path,
-        conf=0.25,
-        device=0 if device == 'cuda' else 'cpu',
-        save=False,
-        imgsz=512
-    )
-    return results[0]
+    # 3. Run Inference
+    # YOLO.predict can take numpy array
+    results = model.predict(img_numpy, imgsz=512, verbose=False)
 
+    # 4. Process Output
+    # Create empty mask if no detection
+    mask_pred = np.zeros((img_numpy.shape[0], img_numpy.shape[1]), dtype=np.float32)
 
-def visualize_result(img_path, result):
-    """Display original image and prediction."""
-    img = cv2.imread(img_path)
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    if results and results[0].masks is not None:
+        # masks.data is [N, H, W] tensors
+        data = results[0].masks.data
 
-    res_plotted = result.plot()
-    res_plotted = cv2.cvtColor(res_plotted, cv2.COLOR_BGR2RGB)
+        # Resize if needed (YOLO output might be smaller or strictly 512)
+        if data.shape[1:] != (img_numpy.shape[0], img_numpy.shape[1]):
+            data = data.float()
+            data = F.interpolate(data.unsqueeze(1), size=(img_numpy.shape[0], img_numpy.shape[1]),
+                                 mode='bilinear', align_corners=False).squeeze(1)
 
-    fig, ax = plt.subplots(1, 2, figsize=(12, 6))
-    ax[0].imshow(img)
-    ax[0].set_title("Original")
-    ax[0].axis('off')
+        # Collapse all detected instances into one binary mask
+        # data > 0.5 gives binary masks for instances.
+        # Check any instance presence.
+        mask_pred_tensor = torch.any(data > 0.5, dim=0).float()
+        mask_pred = mask_pred_tensor.cpu().numpy()
 
-    ax[1].imshow(res_plotted)
-    ax[1].set_title("Prediction")
-    ax[1].axis('off')
-
-    plt.tight_layout()
-    plt.show()
-
-
-def bulk_inference(model, img_dir, amount=100):
-    """Run inference on a folder of images and measure time."""
-    image_files = sorted([os.path.join(img_dir, f) for f in os.listdir(
-        img_dir) if f.endswith(('.jpg', '.png'))])
-
-    times = []
-
-    for i, img_path in enumerate(tqdm(image_files[:amount], desc="Inference")):
-        start_time = time.time()
-        _ = model.predict(img_path, verbose=False,
-                          device=0 if DEVICE == 'cuda' else 'cpu', imgsz=512)
-        end_time = time.time()
-        times.append(end_time - start_time)
-
-    avg_time = np.mean(times) * 1000
-    print(f"\nInference Speed (avg): {avg_time:.2f} ms per image")
-    return times
+    return img_numpy, mask_gt, mask_pred
 
 
 def main():
-    # Example usage
-    # Assume we have a trained model, or use a pretrained one for demo
-    # For now, let's look for the best model from training if available, else default
+    # Helper: Check paths
+    current_model_path = model_path
+    if not os.path.exists(current_model_path):
+        print(f"Warning: Trained model not found at {current_model_path}")
+        if os.path.exists(model_path_default):
+            print(f"Using default {model_path_default} instead.")
+            current_model_path = model_path_default
 
-    model_path = "yolo12n-seg.pt"  # Default to pretrained if no local model
-    possible_model = os.path.join(
-        'runs/segment/yolov12n_crack_seg/weights/best.pt')
-    if os.path.exists(possible_model):
-        model_path = possible_model
-        print(f"Using trained model: {model_path}")
+    model = YOLO(current_model_path)
 
-    model = evaluate_init(model_path)
+    dataset = dataset_get(img_path="../../../../datasets/dataset_segmentation/test_img/",
+                          mask_path="../../../../datasets/dataset_segmentation/test_lab/", transform=val_transform)
 
-    # 1. Bulk Inference Timing
-    print("Running Bulk Inference Timing...")
-    # Use validation images
-    # We need raw images, they are in YOLO_DATASET_DIR/images/val
+    magic = 30
 
-    val_images_dir = os.path.join(YOLO_DATASET_DIR, 'images', 'val')
-    if os.path.exists(val_images_dir):
-        bulk_inference(model, val_images_dir, amount=50)
-    else:
-        print(
-            f"Validation directory {val_images_dir} not found. Skipping bulk.")
+    # Custom predict loop for YOLO
+    img, msk, out = yolo_predict_single(model, dataset, magic)
 
-    # 2. Single Visualization (Interactive or save)
-    # Just take first image from val
-    if os.path.exists(val_images_dir):
-        files = os.listdir(val_images_dir)
-        if files:
-            target_img = os.path.join(val_images_dir, files[0])
-            print(f"Visualizing {target_img}...")
-            res = predict_single(model, target_img, device=DEVICE)
-            # visualize_result(target_img, res) # Uncomment if running in notebook/gui
-
-            # Save plot
-            res_plotted = res.plot()
-            cv2.imwrite("inference_result.jpg", res_plotted)
-            print("Saved inference_result.jpg")
+    # Use standard visualization
+    visualize_model_output(img, msk, out, save_path=None)
 
 
 if __name__ == "__main__":

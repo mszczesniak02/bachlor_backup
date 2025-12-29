@@ -9,3 +9,5 @@ models_log/
 __pycache__
 all_zipers/
 model_tests/
+logi_unet*
+plots/*
