@@ -10,32 +10,42 @@ from segmentation.common.hparams import *
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 train_transform = A.Compose([
-    # 1. Najpierw PAD: Jeśli zdjęcie jest mniejsze niż 512x512, dopełnij je zerami.
-    # To zabezpiecza przed błędem, gdybyś miał jakieś małe zdjęcie w zbiorze.
-    A.PadIfNeeded(min_height=512, min_width=512,
-                  border_mode=cv2.BORDER_CONSTANT, value=0, mask_value=0),
+    # ZMIANA: Dodano always_apply=True, aby wymusić padding na każdym zdjęciu < 512
+    A.PadIfNeeded(
+        min_height=512,
+        min_width=512,
+        border_mode=cv2.BORDER_CONSTANT,
+        value=0,
+        mask_value=0,
+        always_apply=True
+    ),
 
-    # 2. Potem CROP: Wytnij losowy fragment 512x512.
-    # To jest KLUCZOWE. Zamiast Resize (psucia jakości), uczysz sieć na ostrych wycinkach.
-    A.RandomCrop(height=512, width=512),
+    A.RandomCrop(height=512, width=512, always_apply=True),
 
-    # 3. Reszta augmentacji (bez zmian)
+    # ... reszta augmentacji bez zmian ...
     A.HorizontalFlip(p=0.5),
     A.VerticalFlip(p=0.5),
     A.RandomRotate90(p=0.5),
     A.ElasticTransform(alpha=1, sigma=50, p=0.2),
     A.RandomBrightnessContrast(
         brightness_limit=0.2, contrast_limit=0.2, p=0.5),
+
     A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2(),
 ], is_check_shapes=False)
 
+
+# To samo dla walidacji!
 val_transform = A.Compose([
-    # Walidacja też musi mieć stały wymiar 512x512
-    A.PadIfNeeded(min_height=512, min_width=512,
-                  border_mode=cv2.BORDER_CONSTANT, value=0, mask_value=0),
-    # CenterCrop bierze środek obrazu - dla powtarzalności wyników walidacji
-    A.CenterCrop(height=512, width=512),
+    A.PadIfNeeded(
+        min_height=512,
+        min_width=512,
+        border_mode=cv2.BORDER_CONSTANT,
+        value=0,
+        mask_value=0,
+        always_apply=True
+    ),
+    A.CenterCrop(height=512, width=512, always_apply=True),
 
     A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2(),
