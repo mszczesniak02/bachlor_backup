@@ -111,7 +111,10 @@ class Benchmark:
             # ten2py usually returns RGB HWC in 0-255 range if denormalize=True
             img_numpy = ten2np(img_tensor, denormalize=True) 
 
-            results = model.predict(img_numpy, imgsz=256, verbose=False) # imgsz should match input size
+            # Dynamic image size for inference
+            h, w = img_numpy.shape[:2]
+            # Use 512 as base or dynamic. Since we know val_transform uses 512:
+            results = model.predict(img_numpy, imgsz=512, conf=0.25, verbose=False)
 
             # Default empty
             mask_pred = np.zeros((img_numpy.shape[0], img_numpy.shape[1]), dtype=np.float32)
