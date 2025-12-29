@@ -136,9 +136,10 @@ def main():
         print(f"Error YOLOv12: {e}")
         predictions.append(("YOLOv12", None))
 
-    # 5. Ensemble (Average of all valid predictions)
+    # 5. Ensemble (Average of valid predictions: SegFormer, YOLOv8, U-Net)
     ensemble_pred = None
-    valid_preds = [p for name, p in predictions if p is not None]
+    target_models = {"U-Net", "SegFormer", "YOLOv8"}
+    valid_preds = [p for name, p in predictions if p is not None and name in target_models]
     if valid_preds:
         # Stack and mean
         ensemble_pred = np.mean(np.array(valid_preds), axis=0)
@@ -147,74 +148,66 @@ def main():
         predictions.append(("Ensemble", None))
 
     # VISUALIZATION
-    # Rows: 4
-    # Row 1: Image, Mask
-    # Row 2: U-Net, SegFormer
-    # Row 3: YOLOv8, YOLOv12
-    # Row 4: Ensemble (Centered)
+    # Row 1: Image, Mask, U-Net
+    # Row 2: SegFormer, YOLOv8, YOLOv12
 
-    rows = 4
-    cols = 2
-    fig = plt.figure(figsize=(10, 20))
-    gs = fig.add_gridspec(rows, cols)
-
-    # Row 1: Input and GT
-    ax_img = fig.add_subplot(gs[0, 0])
-    ax_mask = fig.add_subplot(gs[0, 1])
-
-    # Display Image (denormalized)
+    # Prepare display images
     img_disp = ten2np(img_tensor, denormalize=True)
-    ax_img.imshow(img_disp)
-    ax_img.set_title("Input Image")
-    ax_img.axis('off')
-
-    # Display GT Mask
     mask_disp = ten2np(mask_tensor)
-    ax_mask.imshow(mask_disp, cmap='gray')
-    ax_mask.set_title("Ground Truth")
-    ax_mask.axis('off')
 
-    # Models Mapping for Rows 2 and 3
-    # predictions list index:
-    # 0: UNet, 1: SegFormer, 2: YOLO8, 3: YOLO12, 4: Ensemble
+    fig, ax = plt.subplots(2, 3, figsize=(15, 10))
 
-    # Row 2
-    ax_u = fig.add_subplot(gs[1, 0])
-    ax_s = fig.add_subplot(gs[1, 1])
+    # --- Row 1 ---
+    # 1. Input Image
+    ax[0, 0].imshow(img_disp)
+    ax[0, 0].set_title("Obraz wejściowy")
+    ax[0, 0].axis('off')
 
-    model_axes = [ax_u, ax_s]
+    # 2. Ground Truth
+    ax[0, 1].imshow(mask_disp, cmap='gray')
+    ax[0, 1].set_title("Maska")
+    ax[0, 1].axis('off')
 
-    # Row 3
-    ax_y8 = fig.add_subplot(gs[2, 0])
-    ax_y12 = fig.add_subplot(gs[2, 1])
-
-    model_axes.extend([ax_y8, ax_y12])
-
-    # Plot individual models
-    for i in range(4):
-        name, pred = predictions[i]
-        ax = model_axes[i]
-
-        if pred is not None:
-            ax.imshow(pred, cmap='gray', vmin=0, vmax=1)
-            ax.set_title(f"{name}")
-        else:
-            ax.text(0.5, 0.5, "Not Found", ha='center')
-            ax.set_title(f"{name}")
-        ax.axis('off')
-
-    # Row 4: Ensemble (Centered items)
-    # Spanning both columns for key focus
-    ax_ens = fig.add_subplot(gs[3, :]) # span all cols
-
-    ens_name, ens_pred = predictions[4]
-    if ens_pred is not None:
-        ax_ens.imshow(ens_pred, cmap='gray', vmin=0, vmax=1)
-        ax_ens.set_title(f"{ens_name} (Average)")
+    # 3. U-Net
+    name_u, pred_u = predictions[0]
+    if pred_u is not None:
+        ax[0, 2].imshow(pred_u, cmap='gray', vmin=0, vmax=1)
+        ax[0, 2].set_title(f"{name_u}")
     else:
-        ax_ens.text(0.5, 0.5, "No Ensemble", ha='center')
-        ax_ens.set_title(f"{ens_name}")
-    ax_ens.axis('off')
+        ax[0, 2].text(0.5, 0.5, "Not Found", ha='center')
+        ax[0, 2].set_title(f"{name_u}")
+    ax[0, 2].axis('off')
+
+    # --- Row 2 ---
+    # 4. SegFormer
+    name_s, pred_s = predictions[1]
+    if pred_s is not None:
+        ax[1, 0].imshow(pred_s, cmap='gray', vmin=0, vmax=1)
+        ax[1, 0].set_title(f"{name_s}")
+    else:
+        ax[1, 0].text(0.5, 0.5, "Not Found", ha='center')
+        ax[1, 0].set_title(f"{name_s}")
+    ax[1, 0].axis('off')
+
+    # 5. YOLOv8
+    name_y8, pred_y8 = predictions[2]
+    if pred_y8 is not None:
+        ax[1, 1].imshow(pred_y8, cmap='gray', vmin=0, vmax=1)
+        ax[1, 1].set_title(f"{name_y8}")
+    else:
+        ax[1, 1].text(0.5, 0.5, "Not Found", ha='center')
+        ax[1, 1].set_title(f"{name_y8}")
+    ax[1, 1].axis('off')
+
+    # 6. Ensemble (Replaces YOLOv12 in visualization)
+    ens_name, ens_pred = predictions[4] # Ensemble is index 4
+    if ens_pred is not None:
+        ax[1, 2].imshow(ens_pred, cmap='gray', vmin=0, vmax=1)
+        ax[1, 2].set_title(f"{ens_name} (Średnia)")
+    else:
+        ax[1, 2].text(0.5, 0.5, "Not Found", ha='center')
+        ax[1, 2].set_title(f"{ens_name}")
+    ax[1, 2].axis('off')
 
     plt.tight_layout()
     plt.show()

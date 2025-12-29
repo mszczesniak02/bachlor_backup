@@ -143,25 +143,43 @@ def calculate_width(binary_mask: np.ndarray, skeleton: np.ndarray):
 
     dist_transform = ndimage.distance_transform_edt(binary_mask)
 
+    # Get coordinates of skeleton points
+    skeleton_coords = np.argwhere(skeleton)  # [N, 2] -> (y, x)
+
     # Filter distances only at skeleton points
     # Diameter = 2 * Radius
-    skeleton_width_values = dist_transform[skeleton] * 2
-
-    if len(skeleton_width_values) == 0:
+    # We can index directly using the boolean mask or coordinates
+    # Using coords ensures we match index 1-to-1 with location
+    if len(skeleton_coords) == 0:
         return {
             "mean_width": 0.0,
             "max_width": 0.0,
             "min_width": 0.0,
             "std_width": 0.0,
-            "widths": []
+            "widths": [],
+            "max_width_loc": None,
+            "min_width_loc": None
         }, dist_transform
+
+    skeleton_width_values = dist_transform[skeleton_coords[:,
+                                                           0], skeleton_coords[:, 1]] * 2
+
+    # Find locations of max and min
+    idx_max = np.argmax(skeleton_width_values)
+    idx_min = np.argmin(skeleton_width_values)
+
+    max_loc = skeleton_coords[idx_max]  # [y, x]
+    min_loc = skeleton_coords[idx_min]  # [y, x]
 
     stats = {
         "mean_width": np.mean(skeleton_width_values),
         "max_width": np.max(skeleton_width_values),
         "min_width": np.min(skeleton_width_values),
         "std_width": np.std(skeleton_width_values),
-        "widths": skeleton_width_values
+        "widths": skeleton_width_values,
+        # (y, x) for consistency
+        "max_width_loc": (int(max_loc[0]), int(max_loc[1])),
+        "min_width_loc": (int(min_loc[0]), int(min_loc[1]))
     }
 
     return stats, dist_transform

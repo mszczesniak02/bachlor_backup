@@ -28,15 +28,23 @@ from utils.utils import *
 sys.path = original_sys_path
 
 # MODEL PATHS (Taken from inference scripts)
-UNET_PATH = "/home/krzeslaav/Projects/bachlor/model_tests/FULL_DATASET/model_unet_0.5960555357910763.pth"
-SEGFORMER_PATH = "/home/krzeslaav/Projects/bachlor/model_tests/FULL_DATASET/segformermodel_segformer_0.5864474233337809.pth"
-YOLO8_PATH = "/home/krzeslaav/Projects/bachlor/model_tests/FULL_DATASET/segmentation/yolo_big/runs/segment/yolov8m_crack_seg/weights/best.pt"
-# Resolved relative path for YOLO12 based on the file location
-YOLO12_PATH = "/home/krzeslaav/Projects/bachlor/src/segmentation/yolo_12_seg/runs/segment/yolov12m_crack_seg/weights/best.pt"
+# UNET_PATH = "/home/krzeslaav/Projects/bachlor/model_tests/FULL_DATASET/model_unet_0.5960555357910763.pth"
+# SEGFORMER_PATH = "/home/krzeslaav/Projects/bachlor/model_tests/FULL_DATASET/segformermodel_segformer_0.5864474233337809.pth"
+# YOLO8_PATH = "/home/krzeslaav/Projects/bachlor/model_tests/FULL_DATASET/segmentation/yolo_big/runs/segment/yolov8m_crack_seg/weights/best.pt"
+# # Resolved relative path for YOLO12 based on the file location
+# YOLO12_PATH = "/home/krzeslaav/Projects/bachlor/src/segmentation/yolo_12_seg/runs/segment/yolov12m_crack_seg/weights/best.pt"
+
+YOLO8_PATH = "/content/yolo8_deepcrack.pt"
+SEGFORMER_PATH = "/content/segformer_full.pth"
+UNET_PATH = "/content/model_unet_0.5960555357910763.pth"
+YOLO12_PATH = "/content/yolo8_deepcrack.pt"
 
 # DATA PATHS
-TEST_IMG = "../../../datasets/dataset_segmentation/test_img/"
-TEST_LAB = "../../../datasets/dataset_segmentation/test_lab/"
+# TEST_IMG = "../../../datasets/dataset_segmentation/test_img/"
+# TEST_LAB = "../../../datasets/dataset_segmentation/test_lab/"
+TEST_IMG = "/content/datasets/multi/test_img"
+TEST_LAB = "/content/datasets/multi/test_lab"
+
 
 def calculate_metrics(y_true, y_pred, smooth=1e-6):
     """

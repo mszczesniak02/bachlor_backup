@@ -3,7 +3,7 @@ const fileInput = document.getElementById('fileInput');
 const uploadForm = document.getElementById('uploadForm');
 const loading = document.getElementById('loading');
 const error = document.getElementById('error');
-const success = document.getElementById('success');
+
 const result = document.getElementById('result');
 const resultContent = document.getElementById('resultContent');
 
@@ -37,6 +37,7 @@ fileInput.addEventListener('change', (e) => {
         const img = new Image();
         img.onload = () => {
             showPreviewInUploadArea(event.target.result, file.name, img.width, img.height);
+            document.getElementById('analyzeBtn').style.display = 'block';
         };
         img.onerror = () => {
             showError('Nie można załadować pliku');
@@ -75,7 +76,6 @@ uploadForm.addEventListener('submit', async (e) => {
 
         if (data.success) {
             displayResult(data);
-            showSuccess('Analiza ukończona pomyślnie!');
         } else {
             showError(data.error || 'Błąd podczas analizy');
         }
@@ -94,25 +94,20 @@ function displayResult(data) {
     let html = '';
 
     // --- Images Section ---
-    if (images && (images.overlay || images.heatmap || images.mask)) {
-        html += '<div class="images-container" style="display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px;">';
+    if (images && (images.overlay || images.mask)) {
+        html += '<div class="images-container" style="display: flex; flex-direction: column; gap: 20px; align-items: center; padding-bottom: 20px;">';
         
         if (images.overlay) {
-            html += `<div class="thumbnail-section" style="flex: 0 0 300px;">
+            html += `<div class="thumbnail-section" style="width: 100%; max-width: 800px;">
                 <div class="preview-header">Overlay</div>
-                <img src="${images.overlay}" alt="Overlay" />
+                <img src="${images.overlay}" alt="Overlay" style="width: 100%; height: auto; border-radius: 8px;"/>
             </div>`;
         }
-        if (images.heatmap) {
-            html += `<div class="thumbnail-section" style="flex: 0 0 300px;">
-                <div class="preview-header">Heatmap</div>
-                <img src="${images.heatmap}" alt="Heatmap" />
-            </div>`;
-        }
+        // Heatmap removed
         if (images.mask) {
-            html += `<div class="thumbnail-section" style="flex: 0 0 300px;">
+            html += `<div class="thumbnail-section" style="width: 100%; max-width: 800px;">
                 <div class="preview-header">Mask</div>
-                <img src="${images.mask}" alt="Mask" />
+                <img src="${images.mask}" alt="Mask" style="width: 100%; height: auto; border-radius: 8px;"/>
             </div>`;
         }
         html += '</div>';
@@ -123,25 +118,14 @@ function displayResult(data) {
         </div>`;
     }
 
-    // --- Basic Info ---
-    html += `<div class="result-group">
-        <h3 style="color: #667eea; margin-bottom: 10px;">📄 Plik</h3>
-        <div class="result-item">
-            <div class="result-label">Nazwa</div>
-            <div class="result-value">${info.filename}</div>
-        </div>
-        <div class="result-item">
-            <div class="result-label">Wymiary</div>
-            <div class="result-value">${info.size.width} × ${info.size.height} px</div>
-        </div>
-    </div>`;
+    // --- Basic Info REMOVED ---
 
     // --- Domain Controller ---
     if (analysis && analysis.domain_controller) {
         const dc = analysis.domain_controller;
-        const color = dc.is_crack ? '#c33' : '#2c6e2c';
+        const color = dc.is_crack ? '#2c6e2c' : '#c33';
         html += `<div class="result-group" style="margin-top: 20px;">
-            <h3 style="color: #667eea; margin-bottom: 10px;">🔍 Detekcja</h3>
+            <h3 style="color: #667eea; margin-bottom: 10px;">Detekcja</h3>
             <div class="result-item" style="border-left-color: ${color};">
                 <div class="result-label">Status</div>
                 <div class="result-value" style="color: ${color}; font-weight: bold;">
@@ -155,7 +139,7 @@ function displayResult(data) {
     if (analysis && analysis.classification) {
         const cl = analysis.classification;
         html += `<div class="result-group" style="margin-top: 20px;">
-            <h3 style="color: #667eea; margin-bottom: 10px;">🏷️ Klasyfikacja</h3>
+            <h3 style="color: #667eea; margin-bottom: 10px;">Klasyfikacja</h3>
             <div class="result-item">
                 <div class="result-label">Kategoria</div>
                 <div class="result-value">${cl.class_name}</div>
@@ -173,37 +157,36 @@ function displayResult(data) {
         const basic = geo.basic || {};
         const width = geo.width_stats || {};
         
+        const descStyle = 'font-size: 0.85em; color: #a0aec0; margin-top: 5px; line-height: 1.2;';
+
         html += `<div class="result-group" style="margin-top: 20px;">
-            <h3 style="color: #667eea; margin-bottom: 10px;">📐 Geometria</h3>
+            <h3 style="color: #667eea; margin-bottom: 10px;">Geometria</h3>
             
             <div class="result-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                 <div class="result-item">
                     <div class="result-label">Długość</div>
                     <div class="result-value">${geo.length_pixels ? geo.length_pixels.toFixed(1) : 0} px</div>
+                    <div style="${descStyle}">Suma pikseli wzdłuż szkieletu pęknięcia.</div>
                 </div>
                 <div class="result-item">
                     <div class="result-label">Szerokość (Średnia)</div>
                     <div class="result-value">${width.mean_width ? width.mean_width.toFixed(2) : 0} px</div>
+                    <div style="${descStyle}">Średnia odległość krawędzi od środka pęknięcia.</div>
                 </div>
                  <div class="result-item">
                     <div class="result-label">Szerokość (Max)</div>
                     <div class="result-value">${width.max_width ? width.max_width.toFixed(2) : 0} px</div>
+                    <div style="${descStyle}">Największa lokalna szerokość pęknięcia.</div>
                 </div>
                 <div class="result-item">
                     <div class="result-label">Powierzchnia</div>
                     <div class="result-value">${basic.area_pixels ? basic.area_pixels.toFixed(0) : 0} px²</div>
-                </div>
-                 <div class="result-item">
-                    <div class="result-label">Solidność</div>
-                    <div class="result-value">${basic.solidity ? basic.solidity.toFixed(3) : 0}</div>
-                </div>
-                <div class="result-item">
-                    <div class="result-label">Wsp. Kształtu</div>
-                    <div class="result-value">${basic.aspect_ratio ? basic.aspect_ratio.toFixed(2) : 0}</div>
+                    <div style="${descStyle}">Całkowita liczba pikseli zaklasyfikowanych jako pęknięcie.</div>
                 </div>
                  <div class="result-item">
                     <div class="result-label">Orientacja</div>
                     <div class="result-value">${basic.orientation ? (basic.orientation * 180 / Math.PI).toFixed(1) : 0}°</div>
+                    <div style="${descStyle}">Kąt nachylenia głównej osi pęknięcia (-90° do 90°).</div>
                 </div>
             </div>
         </div>`;
@@ -212,31 +195,32 @@ function displayResult(data) {
         if (analysis.geometric.advanced) {
             const adv = analysis.geometric.advanced;
             html += `<div class="result-group" style="margin-top: 20px;">
-                <h3 style="color: #667eea; margin-bottom: 10px;">🔬 Zaawansowana Analiza</h3>
+                <h3 style="color: #667eea; margin-bottom: 10px;">Zaawansowana Analiza</h3>
                 <div class="result-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                      <div class="result-item">
                         <div class="result-label">Krętość (Tortuosity)</div>
                         <div class="result-value">${adv.tortuosity ? adv.tortuosity.toFixed(3) : 1.0}</div>
-                    </div>
-                     <div class="result-item">
-                        <div class="result-label">Wymiar Fraktalny</div>
-                        <div class="result-value">${adv.fractal_dimension ? adv.fractal_dimension.toFixed(3) : 0}</div>
+                        <div style="${descStyle}">Stosunek długości rzeczywistej do odległości w linii prostej (1.0 = prosta).</div>
                     </div>
                      <div class="result-item">
                         <div class="result-label">Punkty Rozgałęzień</div>
                         <div class="result-value">${adv.branch_points_count !== undefined ? adv.branch_points_count : 0}</div>
+                        <div style="${descStyle}">Liczba miejsc, gdzie pęknięcie się rozdwaja.</div>
                     </div>
                      <div class="result-item">
                         <div class="result-label">Punkty Końcowe</div>
                         <div class="result-value">${adv.endpoints_count !== undefined ? adv.endpoints_count : 0}</div>
+                        <div style="${descStyle}">Liczba "ślepych zaułków" (końców) pęknięcia.</div>
                     </div>
                      <div class="result-item">
                         <div class="result-label">Gęstość Pęknięć</div>
                         <div class="result-value">${adv.crack_density ? adv.crack_density.toFixed(4) : 0}</div>
+                        <div style="${descStyle}">Stosunek długości pęknięcia do powierzchni całego obrazu.</div>
                     </div>
                      <div class="result-item">
                         <div class="result-label">Intensywność Rozgałęzień</div>
                         <div class="result-value">${adv.branching_intensity ? adv.branching_intensity.toFixed(4) : 0}</div>
+                        <div style="${descStyle}">Liczba punktów rozgałęzień przypadająca na piksel długości.</div>
                     </div>
                 </div>
             </div>`;
@@ -248,14 +232,11 @@ function displayResult(data) {
 }
 
 function showError(msg) {
-    error.textContent = '❌ ' + msg;
+    error.textContent = msg;
     error.classList.add('show');
 }
 
-function showSuccess(msg) {
-    success.textContent = '✅ ' + msg;
-    success.classList.add('show');
-}
+
 
 function showLoading(show) {
     loading.classList.toggle('show', show);
@@ -263,7 +244,6 @@ function showLoading(show) {
 
 function hideMessages() {
     error.classList.remove('show');
-    success.classList.remove('show');
     result.classList.remove('show');
 }
 
@@ -278,7 +258,7 @@ function showPreviewInUploadArea(imageSrc, filename, width, height) {
                 <div class="preview-dimensions">${width} × ${height} px</div>
             </div>
             <button type="button" class="change-file-btn" onclick="document.getElementById('fileInput').click()">
-                ✎ Zmień plik
+                Zmień plik
             </button>
         </div>
     `;

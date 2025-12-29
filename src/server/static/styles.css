@@ -217,7 +217,7 @@ button:disabled {
 
 .thumbnail-section img {
     max-width: 100%;
-    max-height: 300px;
+
     border-radius: 4px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
@@ -301,4 +301,29 @@ button:disabled {
 .success.show {
     display: block;
     animation: slideIn 0.3s ease;
+}
+
+@media (max-width: 600px) {
+    body {
+        background: #f4f6f8; /* Flat light background */
+        padding: 0;
+        align-items: flex-start; /* Expand to top */
+    }
+
+    .container {
+        width: 100%;
+        max-width: 100%;
+        border-radius: 0;
+        box-shadow: none;
+        padding: 15px; /* Reduced padding */
+        min-height: 100vh; /* Fill screen */
+    }
+
+    h1 {
+        font-size: 20px;
+    }
+
+    .result-grid {
+        grid-template-columns: 1fr !important; /* Single column for metrics */
+    }
 }

@@ -17,7 +17,7 @@ sys.path.append(os.path.abspath(
 from geometric_analysis.pipeline import CrackAnalysisPipeline
 
 # Konfiguracja
-UPLOAD_FOLDER = 'uploads'
+UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'bmp', 'gif'}
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 
@@ -29,9 +29,14 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = MAX_FILE_SIZE
 
 # Initialize Pipeline (Loads models into memory)
-print("⏳ Loading AI Models...")
-PIPELINE = CrackAnalysisPipeline()
-print("✅ AI Models Loaded!")
+# Prevent double loading when using Flask reloader (debug=True)
+if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
+    print("⏳ Loading AI Models...")
+    PIPELINE = CrackAnalysisPipeline()
+    print("✅ AI Models Loaded!")
+else:
+    print("⏳ Skipping Model Load in Reloader Process...")
+    PIPELINE = None
 
 
 def allowed_file(filename):
