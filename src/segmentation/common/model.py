@@ -16,8 +16,8 @@ def model_init(model_name: str):
             encoder_weights="imagenet",
             in_channels=3,
             classes=1,
-            # decoder_attention_type="scse",
-            # decoder_use_batchnorm=True
+            decoder_attention_type="scse",
+            decoder_use_batchnorm=True
         )
         return model
     elif model_name == "segformer":

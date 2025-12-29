@@ -128,6 +128,7 @@ def visualize_grid_by_class(model, dataset, device, class_names):
     plt.show()
 
 def main():
+    np.random.seed(42)  # Ensure consistent samples across models
     class_names = ["Włosowate", "Małe", "Średnie", "Duże"] # Adjust based on 4 classes mapping
     if NUM_CLASSES != len(class_names):
         print(f"Warning: Hparams NUM_CLASSES ({NUM_CLASSES}) != len(class_names) ({len(class_names)})")
