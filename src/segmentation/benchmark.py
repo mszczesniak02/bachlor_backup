@@ -37,7 +37,7 @@ sys.path = original_sys_path
 YOLO8_PATH = "/content/yolo8_deepcrack.pt"
 SEGFORMER_PATH = "/content/segformer_full.pth"
 UNET_PATH = "/content/model_unet_0.5960555357910763.pth"
-YOLO12_PATH = "/content/yolo8_deepcrack.pt"
+YOLO12_PATH = "/content/yolo12_full.pt"
 
 # DATA PATHS
 # TEST_IMG = "../../../datasets/dataset_segmentation/test_img/"

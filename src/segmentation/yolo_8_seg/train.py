@@ -1,6 +1,7 @@
 # autopep8: off
 import sys
 import os
+import shutil
 from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
 from ultralytics import YOLO
@@ -35,8 +36,50 @@ def train_model(epochs=YOLO_EPOCHS, batch_size=YOLO_BATCH_SIZE, lr=YOLO_LEARNING
                 f"Warning: Checkpoint not found at {RESUME_MODEL_PATH}. Starting fresh.")
 
         model_name = f"yolov8{model_size}-seg.pt"  # e.g., yolov8n-seg.pt
-        print(f"Initializing YOLOv8 model: {model_name}")
-        model = YOLO(model_name)
+        yaml_name = f"yolov8{model_size}-seg.yaml"
+
+        if os.path.exists(model_name):
+            print(f"Initializing YOLOv8 model from weights: {model_name}")
+            model = YOLO(model_name)
+        else:
+            # Check for base config
+            base_yaml = os.path.join(
+                os.path.dirname(__file__), 'yolov8-seg.yaml')
+            target_yaml = os.path.join(os.path.dirname(__file__), yaml_name)
+
+            if os.path.exists(base_yaml):
+                # Create scale-specific yaml if it doesn't exist
+                if not os.path.exists(target_yaml):
+                    print(
+                        f"Creating {target_yaml} from {base_yaml} to apply scale '{model_size}'")
+                    shutil.copy(base_yaml, target_yaml)
+
+                print(f"Initializing YOLOv8 model from config: {target_yaml}")
+                model = YOLO(target_yaml)
+                # Note: This initializes with random weights!
+                # If you want to load pretrained weights AND use custom config,
+                # you might need to load weights then transfer.
+                # But usually for 'best' custom arch, random init + pretrain is complex.
+                # Standard ultralytics usage: if loading from yaml, it's new model.
+                # To use pretrained weights with custom YAML is tricky if architecture changes.
+                # simpler: YOLO(yaml).load(weights)
+                try:
+                    # Attempt to load matching pretrained weights if they exist online/locally
+                    # This only works if architecture matches standard.
+                    # If user customized yaml heavily, skip or use 'yolov8n-seg.pt' generic
+                    weights = f"yolov8{model_size}-seg.pt"
+                    print(
+                        f"Attempting to load weights {weights} into custom config...")
+                    model.load(weights)
+                except Exception as e:
+                    print(f"Could not load pretrained weights: {e}")
+                    print(
+                        "Starting from scratch (random weights) or incompatible config.")
+            else:
+                print(
+                    f"Weights {model_name} not found and no config {base_yaml} found.")
+                print(f"Initializing YOLOv8 model: {model_name} (downloading)")
+                model = YOLO(model_name)
 
     # Dataset config path
     data_yaml = os.path.join(YOLO_DATASET_DIR, 'dataset.yaml')
@@ -112,6 +155,13 @@ def train_model(epochs=YOLO_EPOCHS, batch_size=YOLO_BATCH_SIZE, lr=YOLO_LEARNING
         resume=resume_flag,
         imgsz=512,  # Matching U-Net size (updated to 512 per user request)
         patience=EARLY_STOPPING_PATIENCE,
+        # Optimization for best segmentation quality
+        retina_masks=True,   # High-resolution masks
+        overlap_mask=True,   # Masks can overlap (useful for merging)
+        box=7.5,             # Box loss gain (default 7.5)
+        cls=0.5,             # Cls loss gain (default 0.5)
+        dfl=1.5,             # DFL loss gain (default 1.5)
+        # We can increase box/dfl if we care more about shape accuracy
     )
 
     print("Training complete.")
