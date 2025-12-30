@@ -153,12 +153,12 @@ def train_model(epochs=YOLO_EPOCHS, batch_size=YOLO_BATCH_SIZE, lr=YOLO_LEARNING
         exist_ok=True,  # Overwrite existing experiment with same name if exists, or False to increment
         pretrained=True,
         resume=resume_flag,
-        imgsz=512,  # Matching U-Net size (updated to 512 per user request)
+        imgsz=640,  # Increased to 640 for better small crack resolution
         patience=EARLY_STOPPING_PATIENCE,
         # Optimization for best segmentation quality
         retina_masks=True,   # High-resolution masks
         overlap_mask=True,   # Masks can overlap (useful for merging)
-        box=7.5,             # Box loss gain (default 7.5)
+        box=5.0,             # Reduced from 7.5 to force focus on mask/segmentation
         cls=0.5,             # Cls loss gain (default 0.5)
         dfl=1.5,             # DFL loss gain (default 1.5)
         # We can increase box/dfl if we care more about shape accuracy
