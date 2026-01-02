@@ -31,8 +31,8 @@ sys.path = original_sys_path
 
 # MODEL PATHS (Taken from inference scripts)
 UNET_PATH = "/content/model_unet.pth"
-SEGFORMER_PATH = "/content/segformermodel_segformer_0.5864474233337809.pth"
-YOLO8_PATH = "/content/yolov8m_crack_seg/weights/best.pt"
+SEGFORMER_PATH = "/content/segformer_full.pth"
+YOLO8_PATH = "/content/yolo8_deepcrack.pt"
 
 # DATA PATHS
 TEST_IMG = "/content/datasets/multi/test_img/"
