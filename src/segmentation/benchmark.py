@@ -11,8 +11,7 @@ import torch.nn.functional as F
 from ultralytics import YOLO
 import matplotlib.pyplot as plt
 import concurrent.futures
-
-original_sys_path = sys.path.copy()
+from contextlib import nullcontext
 
 # moving to "segmentation/"
 sys.path.append(os.path.abspath(
@@ -156,20 +155,45 @@ class Benchmark:
         self.results.append(result)
         return result
 
-    def worker_predict(self, model_info, images):
+    def worker_predict(self, model_info, images, stream=None):
+        """
+        Executes prediction ensuring it runs in the specified CUDA stream.
+        """
         name, m_type, model = model_info
-        if m_type == 'torch':
-            return self.predict_torch(model, images, return_probs=True).squeeze(1)
-        elif m_type == 'yolo':
-            return self.predict_yolo(model, images, return_probs=True)
+
+        # If stream provided, scope the CUDA calls
+        ctx = torch.cuda.stream(stream) if stream else torch.backends.cudnn.flags(enabled=True) # fallback dummy
+
+        # For non-stream context just use nullcontext? 
+        # Actually torch.cuda.stream(None) is default stream.
+        if stream is None:
+            ctx = nullcontext()
+
+        with ctx:
+            if m_type == 'torch':
+                # .cpu() at the end will force synchronization for this stream 
+                # because it copies data back to host.
+                return self.predict_torch(model, images, return_probs=True).squeeze(1)
+            elif m_type == 'yolo':
+                # YOLO predict might internally handle streams if configured, 
+                # or we just run it. Ultralytics is tricky with external streams.
+                # But wrapping it might help for Pre/Post processing ops that use torch.
+                return self.predict_yolo(model, images, return_probs=True)
 
     def evaluate_ensemble_parallel(self, model_specs, dataloader):
         """
-        Parallel inference using ThreadPoolExecutor.
+        Parallel inference using ThreadPoolExecutor AND CUDA Streams.
         model_specs: list of tuples (name, type, model)
         """
         name = "Ensemble Parallel"
         print(f"\n--- Benchmarking {name} ---")
+
+        # Create streams for each model if CUDA available
+        streams = []
+        if torch.cuda.is_available():
+            streams = [torch.cuda.Stream() for _ in model_specs]
+        else:
+            streams = [None for _ in model_specs]
 
         # Ensure all torch models are on device
         for n, t, m in model_specs:
@@ -179,27 +203,41 @@ class Benchmark:
         ious, dices = [], []
         total_time, total_samples = 0, 0
 
-        # We'll rely on global list for final stats, but can track locally too
         pbar = tqdm(dataloader, desc=f"Testing Ensemble Parallel")
 
         with torch.no_grad():
-            # Use a ThreadPoolExecutor
-            # Note: PyTorch CUDA operations release GIL, so this helps.
+            # ThreadPoolExecutor to submit tasks to streams concurrently
             with concurrent.futures.ThreadPoolExecutor(max_workers=len(model_specs)) as executor:
                 for batch_idx, (images, masks) in enumerate(pbar):
                     images = images.to(self.device)
+
+                    # Wait for data transfer to finish before streams start reading
+                    # (Default stream does this, new streams need to wait for default stream event?)
+                    # Actually images.to() is on default stream. 
+                    # We should record an event on default and have others wait?
+                    # Simplest: torch.cuda.synchronize() (brute force) or record event.
+
+                    if torch.cuda.is_available():
+                        # Record event where data is ready
+                        data_ready = torch.cuda.Event()
+                        data_ready.record()
+                        for s in streams:
+                            if s: s.wait_event(data_ready)
+
                     start_time = time.time()
 
-                    # Submit tasks
-                    futures = [executor.submit(self.worker_predict, spec, images) for spec in model_specs]
+                    # Submit tasks with assigned streams
+                    futures = []
+                    for i, spec in enumerate(model_specs):
+                        futures.append(executor.submit(self.worker_predict, spec, images, streams[i]))
 
                     # Collect results
                     batch_probs = []
                     for future in concurrent.futures.as_completed(futures):
                         batch_probs.append(future.result())
 
-                    # Currently batch_probs order is random due to as_completed, 
-                    # but for Averaging it DOES NOT WRONG.
+                    # Results are numpy arrays (CPU), so implicit sync happened in worker.
+                    # We can now average.
 
                     avg_probs = np.mean(np.array(batch_probs), axis=0)
                     preds = (avg_probs > 0.5).astype(np.float32)
@@ -213,6 +251,9 @@ class Benchmark:
                         ious.append(iou)
                         dices.append(dice)
                     total_samples += images.size(0)
+
+        # Cleanup streams
+        # (optional, python gc handles it)
 
         result = {
             "Model": name,
