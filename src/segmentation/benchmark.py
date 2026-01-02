@@ -13,6 +13,8 @@ import matplotlib.pyplot as plt
 import concurrent.futures
 from contextlib import nullcontext
 
+original_sys_path = sys.path.copy()
+
 # moving to "segmentation/"
 sys.path.append(os.path.abspath(
     os.path.join(os.path.dirname(__file__), '../')))
