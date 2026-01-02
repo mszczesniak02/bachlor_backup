@@ -287,16 +287,20 @@ class Benchmark:
             # Models
             names_map = ["U-Net", "SegFormer", "YOLOv8", "Ensemble"]
             # Map specs to simplistic names if needed, but here we can just iterate known order
-            # model_specs order: UNet, SegFormer, YOLOv8 
+            # model_specs order: UNet, SegFormer, YOLOv8
 
             # Mapping:
             # predictions keys: "U-Net", "SegFormer", "YOLOv8" (from passed names)
 
             for i, key in enumerate(names_map):
+                ax_idx = i + 2
                 if key in predictions:
-                    ax[i+2].imshow(predictions[key], cmap='gray', vmin=0, vmax=1)
-                    ax[i+2].set_title(key)
-                    ax[i+2].axis('off')
+                    ax[ax_idx].imshow(predictions[key], cmap='gray', vmin=0, vmax=1)
+                    ax[ax_idx].set_title(key)
+                else:
+                    ax[ax_idx].text(0.5, 0.5, "Not Loaded", ha='center', va='center', fontsize=12)
+                    ax[ax_idx].set_title(f"{key} (Missing)")
+                ax[ax_idx].axis('off')
 
             plt.tight_layout()
             out_name = f"benchmark_sample_{idx}.png"
@@ -322,7 +326,14 @@ def main():
             m = model_load("unet", filepath=UNET_PATH, device=device)
             models.append(("U-Net", "torch", m))
             print("Loaded U-Net")
-    except Exception as e: print(f"Error U-Net: {e}")
+        else:
+            print(f"FAILED TO LOAD U-Net: File not found at {UNET_PATH}")
+            parent = os.path.dirname(UNET_PATH)
+            if os.path.exists(parent):
+                print(f"Contents of {parent}: {os.listdir(parent)}")
+            else:
+                print(f"Parent directory {parent} does not exist.")
+    except Exception as e: print(f"Error loading U-Net: {e}")
 
     # SegFormer
     try:
@@ -330,7 +341,14 @@ def main():
             m = model_load("segformer", filepath=SEGFORMER_PATH, device=device)
             models.append(("SegFormer", "torch", m))
             print("Loaded SegFormer")
-    except Exception as e: print(f"Error SegFormer: {e}")
+        else:
+            print(f"FAILED TO LOAD SegFormer: File not found at {SEGFORMER_PATH}")
+            parent = os.path.dirname(SEGFORMER_PATH)
+            if os.path.exists(parent):
+                print(f"Contents of {parent}: {os.listdir(parent)}")
+            else:
+                print(f"Parent directory {parent} does not exist.")
+    except Exception as e: print(f"Error loading SegFormer: {e}")
 
     # YOLOv8
     try:
@@ -338,7 +356,14 @@ def main():
             m = YOLO(YOLO8_PATH)
             models.append(("YOLOv8", "yolo", m))
             print("Loaded YOLOv8")
-    except Exception as e: print(f"Error YOLOv8: {e}")
+        else:
+            print(f"FAILED TO LOAD YOLOv8: File not found at {YOLO8_PATH}")
+            parent = os.path.dirname(YOLO8_PATH)
+            if os.path.exists(parent):
+                print(f"Contents of {parent}: {os.listdir(parent)}")
+            else:
+                print(f"Parent directory {parent} does not exist.")
+    except Exception as e: print(f"Error loading YOLOv8: {e}")
 
     if not models:
         print("No models loaded.")
