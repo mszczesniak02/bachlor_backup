@@ -27,7 +27,7 @@ sys.path = original_sys_path
 # MODEL PATHS
 UNET_PATH = "/home/krzeslaav/Projects/bachlor/model_tests/FULL_DATASET/model_unet_0.5960555357910763.pth"
 SEGFORMER_PATH = "/home/krzeslaav/Projects/bachlor/model_tests/FULL_DATASET/segformermodel_segformer_0.5864474233337809.pth"
-YOLO8_PATH = "/home/krzeslaav/Projects/bachlor/model_tests/FULL_DATASET/segmentation/yolo_big/runs/segment/yolov8m_crack_seg/weights/best.pt"
+YOLO8_PATH = "/home/krzeslaav/Desktop/uuwe/yolo8_max/runs/segment/yolov8m_crack_seg/weights/best.pt"
 YOLO12_PATH = "/home/krzeslaav/Projects/bachlor/src/segmentation/yolo_12_seg/runs/segment/yolov12m_crack_seg/weights/best.pt"
 
 # DATA PATHS

@@ -112,9 +112,8 @@ class Benchmark:
             img_numpy = ten2np(img_tensor, denormalize=True) 
 
             # Dynamic image size for inference
-            h, w = img_numpy.shape[:2]
-            # Use 512 as base or dynamic. Since we know val_transform uses 512:
-            results = model.predict(img_numpy, imgsz=512, conf=0.25, verbose=False)
+            # Using 512 as per user request to match val_transform output
+            results = model.predict(img_numpy, imgsz=512, verbose=False, conf=0.25)
 
             # Default empty
             mask_pred = np.zeros((img_numpy.shape[0], img_numpy.shape[1]), dtype=np.float32)
@@ -127,11 +126,13 @@ class Benchmark:
                     data = F.interpolate(data.unsqueeze(1), size=(img_numpy.shape[0], img_numpy.shape[1]),
                                          mode='bilinear', align_corners=False).squeeze(1)
 
-                # Combine instances
+                # Combine instances (Flattening logic)
+                # "Spłaszczenie" - merge all detected object masks into one binary mask
                 if return_probs:
                     # Max probability across instances (soft merge)
                     mask_pred_tensor = torch.max(data, dim=0)[0].float()
                 else:
+                    # Binary merge
                     mask_pred_tensor = torch.any(data > 0.5, dim=0).float()
 
                 mask_pred = mask_pred_tensor.cpu().numpy()
@@ -370,21 +371,12 @@ def main():
 
     # 4. Benchmark YOLOv12
     try:
-        # Check explicit path or fallback
-        yolo12_p = YOLO12_PATH
-        if not os.path.exists(yolo12_p):
-            # Try fallback to just filename if user has it locally different
-            yolo12_p = "yolov12m_crack_seg.pt" 
-
-        if os.path.exists(yolo12_p) or True: # Try loading anyway if 'best.pt' is generic
-            # If path assumes existing but file check failed, might fail. 
-            # But let's trust the path first.
-            if os.path.exists(YOLO12_PATH):
-                model_yolo12 = YOLO(YOLO12_PATH)
-                benchmark.evaluate_model("YOLOv12", "yolo", model_yolo12, dataloader)
-                del model_yolo12
-            else:
-                print(f"Skipping YOLOv12: File not found {YOLO12_PATH}")
+        if os.path.exists(YOLO12_PATH):
+            model_yolo12 = YOLO(YOLO12_PATH)
+            benchmark.evaluate_model("YOLOv12", "yolo", model_yolo12, dataloader)
+            del model_yolo12
+        else:
+            print(f"Skipping YOLOv12: File not found {YOLO12_PATH}")
     except Exception as e:
         print(f"Error YOLOv12: {e}")
 
