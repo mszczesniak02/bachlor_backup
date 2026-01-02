@@ -36,8 +36,8 @@ SEGFORMER_PATH = "/content/segformer_full.pth"
 YOLO8_PATH = "/content/yolo8_deepcrack.pt"
 
 # DATA PATHS
-TEST_IMG = "/content/datasets/multi/train_img/"
-TEST_LAB = "/content/datasets/multi/train_lab/"
+TEST_IMG = "/content/datasets/multi/test_img/"
+TEST_LAB = "/content/datasets/multi/test_lab/"
 
 
 def calculate_metrics(y_true, y_pred, smooth=1e-6):
@@ -69,43 +69,88 @@ class Benchmark:
             gpu_usage_mb = torch.cuda.memory_allocated() / 1024**2
         return cpu_usage, ram_usage_mb, gpu_usage_mb
 
-    def predict_torch(self, model, images, return_probs=False):
+    def predict_torch(self, model, images, return_probs=False, return_tensor=False):
         """Standard PyTorch Inference"""
         outputs = model(images)
         if isinstance(outputs, tuple):
             outputs = outputs[0]
         probs = torch.sigmoid(outputs)
+
+        if return_tensor:
+            return probs # [B, 1, H, W] on GPU
+
         if return_probs:
             return probs.cpu().detach().numpy() # [B, 1, H, W]
         preds = (probs > 0.5).float()
         return preds.cpu().detach().numpy() # [B, 1, H, W]
 
-    def predict_yolo(self, model, images_tensor, return_probs=False):
-        """YOLO Inference"""
+    def predict_yolo(self, model, images_tensor, return_probs=False, return_tensor=False):
+        """YOLO Inference keeping data on GPU where possible"""
         preds_batch = []
-        for i in range(images_tensor.shape[0]):
-            img_tensor = images_tensor[i]
-            img_numpy = ten2np(img_tensor, denormalize=True) 
 
-            # Using 512 as requested
-            results = model.predict(img_numpy, imgsz=512, verbose=False, conf=0.25)
-            mask_pred = np.zeros((img_numpy.shape[0], img_numpy.shape[1]), dtype=np.float32)
+        # Denormalize on GPU
+        # images_tensor: [B, 3, H, W]
+        # mean, std from dataloader: mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
+        # unnorm = img * std + mean
+        mean = torch.tensor([0.485, 0.456, 0.406], device=self.device).view(1, 3, 1, 1)
+        std = torch.tensor([0.229, 0.224, 0.225], device=self.device).view(1, 3, 1, 1)
 
-            if results and results[0].masks is not None:
-                data = results[0].masks.data
-                if data.shape[1:] != (img_numpy.shape[0], img_numpy.shape[1]):
-                    data = data.float()
-                    data = F.interpolate(data.unsqueeze(1), size=(img_numpy.shape[0], img_numpy.shape[1]),
+        imgs_denorm = images_tensor * std + mean
+        # Clip to 0-1
+        imgs_denorm = torch.clamp(imgs_denorm, 0, 1)
+        # Convert to uint8 [0-255] for YOLO? YOLO accepts float [0-1] usually or uint8.
+        # Ultralytics checks input. If float, assumes 0-1.
+
+        # Batch inference is supported by YOLO model.predict() passing list of arrays OR tensor?
+        # Ultralytics supports passing a Tensor [B, 3, H, W] directly!
+        # This keeps it on GPU.
+
+        # Using 512 as requested
+        results = model.predict(imgs_denorm, imgsz=512, verbose=False, conf=0.25)
+
+        # Results is a list of Results objects. Masks are on GPU if input was GPU?
+        # Usually masks.data is a tensor on device.
+
+        batch_masks = []
+
+        for i, res in enumerate(results):
+            # Shape of target
+            h, w = images_tensor.shape[2], images_tensor.shape[3]
+
+            if res.masks is not None:
+                data = res.masks.data # [N, H_mask, W_mask] on GPU
+
+                # Resize if needed to match input [H, W]
+                if data.shape[1:] != (h, w):
+                    # Interpolate expects [B, C, H, W]
+                    # data is [N, H, W] -> unsqueeze(1) -> [N, 1, H, W]
+                    data = F.interpolate(data.unsqueeze(1), size=(h, w), 
                                          mode='bilinear', align_corners=False).squeeze(1)
 
-                if return_probs:
-                    mask_pred_tensor = torch.max(data, dim=0)[0].float()
+                if return_probs or return_tensor:
+                    # Soft merge: Max probability? masks.data is usually binary-ish or confidence?
+                    # Ultralytics masks.data is usually binary masks actually (unless retina_masks=True?)
+                    # But let's assume it's float confidence if raw? No, standard is binary mask @ conf threshold.
+                    # If we want probs, we might not get raw mask logits easily without digging.
+                    # But assuming data is binary 0/1 float:
+                    mask_pred = torch.max(data, dim=0)[0] # [H, W]
                 else:
-                    mask_pred_tensor = torch.any(data > 0.5, dim=0).float()
-                mask_pred = mask_pred_tensor.cpu().numpy()
+                    mask_pred = torch.any(data > 0.5, dim=0).float()
+            else:
+                mask_pred = torch.zeros((h, w), device=self.device, dtype=torch.float32)
 
-            preds_batch.append(mask_pred)
-        return np.array(preds_batch) # [B, H, W]
+            batch_masks.append(mask_pred)
+
+        # Stack to [B, H, W]
+        if batch_masks:
+            preds_tensor = torch.stack(batch_masks)
+        else:
+            preds_tensor = torch.zeros((images_tensor.shape[0], images_tensor.shape[2], images_tensor.shape[3]), device=self.device)
+
+        if return_tensor:
+            return preds_tensor # [B, H, W] on device
+
+        return preds_tensor.cpu().numpy()
 
     def evaluate_model(self, model_name, model_type, model, dataloader):
         print(f"\n--- Benchmarking {model_name} ---")
@@ -160,37 +205,27 @@ class Benchmark:
     def worker_predict(self, model_info, images, stream=None):
         """
         Executes prediction ensuring it runs in the specified CUDA stream.
+        Returns GPU tensor.
         """
         name, m_type, model = model_info
 
-        # If stream provided, scope the CUDA calls
-        ctx = torch.cuda.stream(stream) if stream else torch.backends.cudnn.flags(enabled=True) # fallback dummy
-
-        # For non-stream context just use nullcontext? 
-        # Actually torch.cuda.stream(None) is default stream.
-        if stream is None:
-            ctx = nullcontext()
+        ctx = torch.cuda.stream(stream) if stream else nullcontext()
 
         with ctx:
             if m_type == 'torch':
-                # .cpu() at the end will force synchronization for this stream 
-                # because it copies data back to host.
-                return self.predict_torch(model, images, return_probs=True).squeeze(1)
+                # Return [B, 1, H, W], squeeze to [B, H, W]
+                return self.predict_torch(model, images, return_tensor=True).squeeze(1)
             elif m_type == 'yolo':
-                # YOLO predict might internally handle streams if configured, 
-                # or we just run it. Ultralytics is tricky with external streams.
-                # But wrapping it might help for Pre/Post processing ops that use torch.
-                return self.predict_yolo(model, images, return_probs=True)
+                return self.predict_yolo(model, images, return_tensor=True)
 
     def evaluate_ensemble_parallel(self, model_specs, dataloader):
         """
         Parallel inference using ThreadPoolExecutor AND CUDA Streams.
-        model_specs: list of tuples (name, type, model)
+        Averages on GPU.
         """
         name = "Ensemble Parallel"
         print(f"\n--- Benchmarking {name} ---")
 
-        # Create streams for each model if CUDA available
         streams = []
         if torch.cuda.is_available():
             streams = [torch.cuda.Stream() for _ in model_specs]
@@ -213,14 +248,7 @@ class Benchmark:
                 for batch_idx, (images, masks) in enumerate(pbar):
                     images = images.to(self.device)
 
-                    # Wait for data transfer to finish before streams start reading
-                    # (Default stream does this, new streams need to wait for default stream event?)
-                    # Actually images.to() is on default stream. 
-                    # We should record an event on default and have others wait?
-                    # Simplest: torch.cuda.synchronize() (brute force) or record event.
-
                     if torch.cuda.is_available():
-                        # Record event where data is ready
                         data_ready = torch.cuda.Event()
                         data_ready.record()
                         for s in streams:
@@ -233,28 +261,31 @@ class Benchmark:
                     for i, spec in enumerate(model_specs):
                         futures.append(executor.submit(self.worker_predict, spec, images, streams[i]))
 
-                    # Collect results
+                    # Collect results (GPU Tensors)
                     batch_probs = []
                     for future in concurrent.futures.as_completed(futures):
                         batch_probs.append(future.result())
 
-                    # Results are numpy arrays (CPU), so implicit sync happened in worker.
-                    # We can now average.
+                    # Compute Average on GPU
+                    # stack: [Models, B, H, W] -> mean(0) -> [B, H, W]
+                    avg_probs = torch.stack(batch_probs).mean(dim=0)
+                    preds = (avg_probs > 0.5).float()
 
-                    avg_probs = np.mean(np.array(batch_probs), axis=0)
-                    preds = (avg_probs > 0.5).astype(np.float32)
+                    # Now move to CPU for metrics
+                    preds_np = preds.cpu().numpy()
 
                     end_time = time.time()
                     total_time += (end_time - start_time)
 
                     masks_np = masks.cpu().numpy().squeeze(1)
-                    for i in range(preds.shape[0]):
-                        iou, dice = calculate_metrics(masks_np[i], preds[i])
+
+                    for i in range(preds_np.shape[0]):
+                        iou, dice = calculate_metrics(masks_np[i], preds_np[i])
                         ious.append(iou)
                         dices.append(dice)
                     total_samples += images.size(0)
 
-        # Cleanup streams
+        # Cleanup streams (optional)
         # (optional, python gc handles it)
 
         result = {
