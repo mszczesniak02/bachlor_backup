@@ -36,8 +36,8 @@ SEGFORMER_PATH = "/content/segformer_full.pth"
 YOLO8_PATH = "/content/yolo8_deepcrack.pt"
 
 # DATA PATHS
-TEST_IMG = "/content/datasets/multi/test_img/"
-TEST_LAB = "/content/datasets/multi/test_lab/"
+TEST_IMG = "/content/datasets/multi/train_img/"
+TEST_LAB = "/content/datasets/multi/train_lab/"
 
 
 def calculate_metrics(y_true, y_pred, smooth=1e-6):
