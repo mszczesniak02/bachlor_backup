@@ -23,64 +23,65 @@ from segmentation.benchmark import ten2np
 from segmentation.common.model import model_load
 from segmentation.common.dataloader import dataset_get, val_transform
 from segmentation.common.hparams import DEVICE
-# Add DeepSegmentor to path for DeepCrack imports
-deep_segmentor_path = os.path.abspath(
-    os.path.join(current_dir, "DeepSegmentor"))
-if deep_segmentor_path not in sys.path:
-    sys.path.insert(0, deep_segmentor_path)
+# --- Helper for robust importing ---
+def import_from_path(base_path, module_name, import_func, conflicting_modules=['model', 'models', 'config', 'utils']):
+    """
+    Imports a module from a specific path, handling collisions by clearing sys.modules.
+    """
+    if base_path not in sys.path:
+        sys.path.insert(0, base_path)
 
-# Add CrackFormer-II to path
+    # Clear conflicting modules to force reload from this path
+    for mod in conflicting_modules:
+        if mod in sys.modules:
+            del sys.modules[mod]
+        # Also clear submodules
+        keys_to_remove = [k for k in sys.modules if k.startswith(mod + '.')]
+        for k in keys_to_remove:
+            del sys.modules[k]
+
+    try:
+        return import_func()
+    except ImportError as e:
+        print(f"[ERROR] Import failed from {base_path}: {e}")
+        return None
+    except Exception as e:
+        print(f"[ERROR] Exception during import from {base_path}: {e}")
+        return None
+
+# 1. Import DeepCrack (conflicts on 'model')
+deep_crack_path = os.path.abspath(os.path.join(current_dir, "DeepCrack", "codes"))
+def import_deepcrack():
+    from model.deepcrack import DeepCrack
+    return DeepCrack
+DeepCrackNet = import_from_path(deep_crack_path, "model", import_deepcrack, ['model'])
+
+# 2. Import CrackFormer (nets - safe)
 crackformer_path = os.path.abspath(os.path.join(current_dir, "CrackFormer-II", "CrackFormer-II"))
-if crackformer_path not in sys.path:
-    sys.path.insert(0, crackformer_path)
-
-# Add CrackSegFormer to path
-crack_segformer_path = os.path.abspath(os.path.join(current_dir, "CrackSegFormer"))
-if crack_segformer_path not in sys.path:
-    sys.path.insert(0, crack_segformer_path)
-
-# Add CSBSR to path
-csbsr_path = os.path.abspath(os.path.join(current_dir, "CSBSR"))
-if csbsr_path not in sys.path:
-    sys.path.insert(0, csbsr_path)
-
-
-# Import DeepCrack
-try:
-    from models.deepcrack_networks import DeepCrackNet
-except ImportError:
-    try:
-        from DeepSegmentor.models.deepcrack_networks import DeepCrackNet
-    except ImportError:
-        DeepCrackNet = None
-        print("[ERROR] DeepCrackNet not found")
-
-# Import CrackFormer
-try:
+def import_crackformer():
     from nets.crackformerII import crackformer
-except ImportError:
-    crackformer = None
-    print("[ERROR] CrackFormer not found")
+    return crackformer
+crackformer = import_from_path(crackformer_path, "nets", import_crackformer, [])
 
-# Import CrackSegFormer
-SegFormer = None
-try:
+# 3. Import CrackSegFormer (conflicts on 'models')
+crack_segformer_path = os.path.abspath(os.path.join(current_dir, "CrackSegFormer"))
+def import_segformer():
     from models.segformer.segformer import SegFormer
-except ImportError:
-    if 'models' in sys.modules:
-        del sys.modules['models']
-    try:
-        from models.segformer.segformer import SegFormer
-    except ImportError:
-        print("[ERROR] CrackSegFormer not found")
+    return SegFormer
+SegFormer = import_from_path(crack_segformer_path, "models", import_segformer, ['models'])
 
-# Import CSBSR
+# 4. Import CSBSR (conflicts on 'model', 'config', 'utils')
+csbsr_path = os.path.abspath(os.path.join(current_dir, "CSBSR"))
 JointModel = None
-csbsr_cfg = None 
-try:
-    from model.modeling.build_model import JointModel
-    from model.config import cfg as csbsr_cfg
-except ImportError:
+csbsr_cfg = None
+def import_csbsr():
+    from model.modeling.build_model import JointModel as JM
+    from model.config import cfg as C
+    return JM, C
+res = import_from_path(csbsr_path, "model", import_csbsr, ['model', 'config', 'utils'])
+if res:
+    JointModel, csbsr_cfg = res
+else:
     print("[ERROR] CSBSR not found")
 
 

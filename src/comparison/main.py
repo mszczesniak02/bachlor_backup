@@ -19,70 +19,77 @@ src_dir = os.path.dirname(current_dir)
 if src_dir not in sys.path:
     sys.path.append(src_dir)
 
-# Add DeepSegmentor to path for DeepCrack imports
+# --- Helper for robust importing ---
+def import_from_path(base_path, import_func, conflicting_modules=['model', 'models', 'config', 'utils']):
+    """
+    Imports a module from a specific path, handling collisions by clearing sys.modules.
+    """
+    if base_path not in sys.path:
+        sys.path.insert(0, base_path)
+
+    # Clear conflicting modules to force reload from this path
+    for mod in conflicting_modules:
+        if mod in sys.modules:
+            del sys.modules[mod]
+        # Also clear submodules (e.g. model.deepcrack)
+        keys_to_remove = [k for k in sys.modules if k.startswith(mod + '.')]
+        for k in keys_to_remove:
+            del sys.modules[k]
+
+    try:
+        return import_func()
+    except ImportError as e:
+        print(f"[ERROR] Import failed from {base_path}: {e}")
+        return None
+    except Exception as e:
+        print(f"[ERROR] Exception during import from {base_path}: {e}")
+        return None
+
+# 1. Import DeepCrack (from DeepSegmentor, conflicts on 'models')
+# DeepSegmentor path for DeepCrack imports
 deep_segmentor_path = os.path.abspath(os.path.join(current_dir, "DeepSegmentor"))
-if deep_segmentor_path not in sys.path:
-    sys.path.insert(0, deep_segmentor_path)
+def import_deepcrack_net():
+    from models.deepcrack_networks import DeepCrackNet
+    return DeepCrackNet
+DeepCrackNet = import_from_path(deep_segmentor_path, import_deepcrack_net, ['models'])
 
-# Add CrackFormer-II to path
+
+# 2. Import CrackFormer (nets package - likely unique, but safe to handle)
 crackformer_path = os.path.abspath(os.path.join(current_dir, "CrackFormer-II", "CrackFormer-II"))
-if crackformer_path not in sys.path:
-    sys.path.insert(0, crackformer_path)
+def import_crackformer():
+    from nets.crackformerII import crackformer
+    return crackformer
+crackformer = import_from_path(crackformer_path, import_crackformer, [])
 
-# Add CrackSegFormer to path
+
+# 3. Import CrackSegFormer (conflicts on 'models')
 crack_segformer_path = os.path.abspath(os.path.join(current_dir, "CrackSegFormer"))
-if crack_segformer_path not in sys.path:
-    sys.path.insert(0, crack_segformer_path)
+def import_segformer():
+    from models.segformer.segformer import SegFormer
+    return SegFormer
+SegFormer = import_from_path(crack_segformer_path, import_segformer, ['models'])
 
-# Add CSBSR to path
+
+# 4. Import CSBSR (conflicts on 'model', 'config', 'utils')
 csbsr_path = os.path.abspath(os.path.join(current_dir, "CSBSR"))
-if csbsr_path not in sys.path:
-    sys.path.insert(0, csbsr_path)
+JointModel = None
+csbsr_cfg = None
+def import_csbsr():
+    from model.modeling.build_model import JointModel as JM
+    from model.config import cfg as C
+    return JM, C
+res = import_from_path(csbsr_path, import_csbsr, ['model', 'config', 'utils'])
+if res:
+    JointModel, csbsr_cfg = res
+else:
+    print("[ERROR] CSBSR not found")
+
 
 from segmentation.common.hparams import DEVICE
 from segmentation.common.dataloader import dataset_get, dataloader_get, val_transform
 from segmentation.common.model import model_load
 from segmentation.benchmark import Benchmark
 
-# Import DeepCrack directly from source
-try:
-    from models.deepcrack_networks import DeepCrackNet
-except ImportError as e:
-    print(f"[ERROR] Could not import DeepCrackNet. Ensure 'DeepSegmentor/models' is correct. Path: {deep_segmentor_path}. Error: {e}")
-    # Try alternate import if 'models' matches incorrectly
-    try:
-        from DeepSegmentor.models.deepcrack_networks import DeepCrackNet
-    except ImportError:
-        DeepCrackNet = None
-
-# Import CrackFormer directly from source
-try:
-    from nets.crackformerII import crackformer
-except ImportError as e:
-    print(f"[ERROR] Could not import crackformer. Ensure 'CrackFormer-II/nets' is correct. Path: {crackformer_path}. Error: {e}")
-    crackformer = None
-
-# Import CrackSegFormer
-SegFormer = None
-try:
-    from models.segformer.segformer import SegFormer
-except ImportError:
-    # Handle 'models' package collision with DeepSegmentor
-    if 'models' in sys.modules:
-        del sys.modules['models']
-    try:
-        from models.segformer.segformer import SegFormer
-    except ImportError as e:
-        print(f"[ERROR] CrackSegFormer not found: {e}")
-
-# Import CSBSR
-JointModel = None
-csbsr_cfg = None 
-try:
-    from model.modeling.build_model import JointModel
-    from model.config import cfg as csbsr_cfg
-except ImportError:
-    print("[ERROR] CSBSR not found")
 
 # =================================================================================================
 #                                     USER CONFIGURATION
