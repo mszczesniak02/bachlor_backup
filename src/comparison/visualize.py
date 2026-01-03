@@ -80,25 +80,7 @@ SegFormer = None
 
 
 # Import CSBSR
-csbsr_path = os.path.abspath(os.path.join(current_dir, "CSBSR"))
-JointModel = None
-csbsr_cfg = None
 
-# Check yacs
-try:
-    import yacs
-except ImportError:
-    print("[WARNING] 'yacs' module not found. CSBSR requires 'yacs'.")
-
-with import_context(csbsr_path, ['model', 'config', 'utils']):
-    try:
-        import warnings
-        warnings.filterwarnings("ignore", category=SyntaxWarning)
-
-        from model.modeling.build_model import JointModel
-        from model.config import cfg as csbsr_cfg
-    except ImportError as e:
-        print(f"[ERROR] CSBSR not found: {e}")
 
 
 # --- CONFIGURATION (Match main.py) ---
@@ -375,6 +357,12 @@ def main():
         plot_order = ['Input', 'Ground Truth', 'My-UNet', 'My-SegFormer', 'My-YOLOv8', 'DeepCrack', 'CrackFormer', 'Ensemble']
 
         fig, ax = plt.subplots(1, 8, figsize=(32, 4))
+
+        # Prepare content
+        content = {}
+        content['Input'] = ten2np(img_tensor, denormalize=True)
+        content['Ground Truth'] = ten2np(mask_tensor, denormalize=False)
+        content.update(preds)
 
         for i, key in enumerate(plot_order):
             ax[i].axis('off')
