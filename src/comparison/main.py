@@ -94,9 +94,22 @@ class DeepCrackWrapper(nn.Module):
         self.net = DeepCrackNet(in_nc, num_classes, ngf, norm)
 
     def forward(self, x):
+        # Renormalize: ImageNet -> [0,1] -> [-1,1] (approx for 0.5 mean/std)
+        # Input x is ImageNet normalized: (x - mean) / std
+        # Target is (x - 0.5) / 0.5 => 2*x - 1 (if x is 0-1)
+
+        # Denormalize ImageNet
+        mean = torch.tensor([0.485, 0.456, 0.406], device=x.device).view(1, 3, 1, 1)
+        std = torch.tensor([0.229, 0.224, 0.225], device=x.device).view(1, 3, 1, 1)
+        x_denorm = x * std + mean
+
+        # Normalize to 0.5, 0.5, 0.5
+        # (val - 0.5) / 0.5
+        x_new = (x_denorm - 0.5) / 0.5
+
         # DeepCrackNet returns tuple: (side1, side2, side3, side4, side5, fused)
         # We only care about the fused output for benchmarking
-        outputs = self.net(x)
+        outputs = self.net(x_new)
         fused = outputs[-1]
         return fused
 
@@ -113,9 +126,19 @@ class CrackFormerWrapper(nn.Module):
         self.net = crackformer()
 
     def forward(self, x):
+        # Renormalize: ImageNet -> [0,1] -> [-1,1]
+
+        # Denormalize ImageNet
+        mean = torch.tensor([0.485, 0.456, 0.406], device=x.device).view(1, 3, 1, 1)
+        std = torch.tensor([0.229, 0.224, 0.225], device=x.device).view(1, 3, 1, 1)
+        x_denorm = x * std + mean
+
+        # Normalize to 0.5, 0.5, 0.5
+        x_new = (x_denorm - 0.5) / 0.5
+
         # crackformer returns tuple: (fuse5, fuse4, fuse3, fuse2, fuse1, output)
         # We want the last element: output
-        outputs = self.net(x)
+        outputs = self.net(x_new)
         return outputs[-1]
 
 # =================================================================================================

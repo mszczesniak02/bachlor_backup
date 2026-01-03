@@ -74,8 +74,18 @@ class DeepCrackWrapper(nn.Module):
         self.net = DeepCrackNet(in_nc, num_classes, ngf, norm)
 
     def forward(self, x):
-        outputs = self.net(x)
-        return outputs[-1]  # fused
+        # Renormalize: ImageNet -> [0,1] -> [-1,1]
+
+        # Denormalize ImageNet
+        mean = torch.tensor([0.485, 0.456, 0.406], device=x.device).view(1, 3, 1, 1)
+        std = torch.tensor([0.229, 0.224, 0.225], device=x.device).view(1, 3, 1, 1)
+        x_denorm = x * std + mean
+
+        # Normalize to 0.5, 0.5, 0.5
+        x_new = (x_denorm - 0.5) / 0.5
+
+        outputs = self.net(x_new)
+        return outputs[-1] # fused
 
 
 class CrackFormerWrapper(nn.Module):
@@ -86,8 +96,18 @@ class CrackFormerWrapper(nn.Module):
         self.net = crackformer()
 
     def forward(self, x):
-        outputs = self.net(x)
-        return outputs[-1]  # output
+        # Renormalize: ImageNet -> [0,1] -> [-1,1]
+
+        # Denormalize ImageNet
+        mean = torch.tensor([0.485, 0.456, 0.406], device=x.device).view(1, 3, 1, 1)
+        std = torch.tensor([0.229, 0.224, 0.225], device=x.device).view(1, 3, 1, 1)
+        x_denorm = x * std + mean
+
+        # Normalize to 0.5, 0.5, 0.5
+        x_new = (x_denorm - 0.5) / 0.5
+
+        outputs = self.net(x_new)
+        return outputs[-1] # output
 
 
 # --- HELPER FUNCTIONS ---
