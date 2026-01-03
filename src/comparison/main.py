@@ -12,6 +12,7 @@ from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 import pandas as pd
 import contextlib
+import torch.nn.functional as F
 
 # Suppress the specific FutureWarning about weights_only from torch.load
 warnings.filterwarnings("ignore", category=FutureWarning, message=".*weights_only.*")
@@ -281,14 +282,24 @@ class CSBSRWrapper(nn.Module):
         std_csbsr = torch.tensor([0.1621, 0.1532, 0.1523], device=x.device).view(1, 3, 1, 1)
         x_new = (x_denorm - mean_csbsr) / std_csbsr
 
+        # Store original dimensions for later
+        _, _, H, W = x.shape
+
+        # Resize to 224x224 for CSBSR (to avoid OOM and match config)
+        input_size = (224, 224)
+        x_resized = F.interpolate(x_new, size=input_size, mode='bilinear', align_corners=False)
+
         # Create dummy kernel
-        B, C, H, W = x.shape
+        B, C, H1, W1 = x_resized.shape
         # Assuming patch size logic in inference.py is for check, but model needs shape
         # forward(self, x, damy_kernel, sr_targets=None)
         # damy_kernel shape: [B, 1, K, K]
         damy_kernel = torch.zeros((B, 1, self.blur_ksize, self.blur_ksize), device=x.device)
 
-        sr_preds, segment_preds, kernel_preds = self.net(x_new, damy_kernel)
+        sr_preds, segment_preds, kernel_preds = self.net(x_resized, damy_kernel)
+
+        # Resize back to original size
+        segment_preds = F.interpolate(segment_preds, size=(H, W), mode='bilinear', align_corners=False)
 
         return segment_preds
 

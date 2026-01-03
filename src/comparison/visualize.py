@@ -5,6 +5,7 @@ import os
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
+import torch.nn.functional as F
 import numpy as np
 import warnings
 import cv2
@@ -221,11 +222,19 @@ class CSBSRWrapper(nn.Module):
         std_csbsr = torch.tensor([0.1621, 0.1532, 0.1523], device=x.device).view(1, 3, 1, 1)
         x_new = (x_denorm - mean_csbsr) / std_csbsr
 
+        # Resize to 224x224 for CSBSR
+        input_size = (224, 224)
+        B, C, H, W = x.shape # Store original dimensions
+        x_resized = F.interpolate(x_new, size=input_size, mode='bilinear', align_corners=False)
+
         # Create dummy kernel
-        B, C, H, W = x.shape
+        _, _, H1, W1 = x_resized.shape # Use resized dimensions for kernel
         damy_kernel = torch.zeros((B, 1, self.blur_ksize, self.blur_ksize), device=x.device)
 
-        sr_preds, segment_preds, kernel_preds = self.net(x_new, damy_kernel)
+        sr_preds, segment_preds, kernel_preds = self.net(x_resized, damy_kernel)
+
+        # Resize back to original size
+        segment_preds = F.interpolate(segment_preds, size=(H, W), mode='bilinear', align_corners=False)
 
         return segment_preds
 
