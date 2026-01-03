@@ -23,10 +23,11 @@ from segmentation.benchmark import ten2np
 from segmentation.common.model import model_load
 from segmentation.common.dataloader import dataset_get, val_transform
 from segmentation.common.hparams import DEVICE
-# Add DeepCrack to path
-deep_crack_path = os.path.abspath(os.path.join(current_dir, "DeepCrack", "codes"))
-if deep_crack_path not in sys.path:
-    sys.path.insert(0, deep_crack_path)
+# Add DeepSegmentor to path for DeepCrack imports
+deep_segmentor_path = os.path.abspath(
+    os.path.join(current_dir, "DeepSegmentor"))
+if deep_segmentor_path not in sys.path:
+    sys.path.insert(0, deep_segmentor_path)
 
 # Add CrackFormer-II to path
 crackformer_path = os.path.abspath(os.path.join(current_dir, "CrackFormer-II", "CrackFormer-II"))
@@ -36,10 +37,13 @@ if crackformer_path not in sys.path:
 
 # Import DeepCrack
 try:
-    from model.deepcrack import DeepCrack
+    from models.deepcrack_networks import DeepCrackNet
 except ImportError:
-    DeepCrack = None
-    print("[ERROR] DeepCrack not found in model.deepcrack")
+    try:
+        from DeepSegmentor.models.deepcrack_networks import DeepCrackNet
+    except ImportError:
+        DeepCrackNet = None
+        print("[ERROR] DeepCrackNet not found")
 
 # Import CrackFormer
 try:
@@ -62,10 +66,11 @@ PATH_CRACKFORMER_WEIGHTS = "/content/m_crackformer.pth"
 
 # --- WRAPPERS ---
 class DeepCrackWrapper(nn.Module):
-    def __init__(self, num_classes=1):
+    def __init__(self, in_nc=3, num_classes=1, ngf=64, norm='batch'):
         super().__init__()
-        if DeepCrack is None: raise ImportError("DeepCrack definition not found.")
-        self.net = DeepCrack(num_classes)
+        if DeepCrackNet is None:
+            raise ImportError("DeepCrackNet definition not found.")
+        self.net = DeepCrackNet(in_nc, num_classes, ngf, norm)
 
     def forward(self, x):
         # Renormalize: ImageNet -> [0,1] -> [-1,1]
@@ -79,7 +84,7 @@ class DeepCrackWrapper(nn.Module):
         x_new = (x_denorm - 0.5) / 0.5
 
         outputs = self.net(x_new)
-        return outputs[0] # output
+        return outputs[-1] # fused
 
 
 class CrackFormerWrapper(nn.Module):
