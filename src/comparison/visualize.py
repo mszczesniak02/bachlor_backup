@@ -200,6 +200,9 @@ class CSBSRWrapper(nn.Module):
         # Bypass loading missing pretrain weights
         self.cfg.defrost()
         self.cfg.MODEL.SR_SCRATCH = True
+        # Force U-Net16 configuration to match user weights
+        self.cfg.MODEL.DETECTOR_TYPE = 'u-net16'
+        self.cfg.MODEL.UP_SAMPLE_METHOD = 'deconv'
         self.cfg.freeze()
 
         self.net = JointModel(self.cfg)
@@ -254,8 +257,7 @@ def load_external_model(model_wrapper_class, weights_path, device, **kwargs):
         else:
             state_dict = checkpoint
 
-        print(f"[DEBUG] Keys in {weights_path} (first 20):")
-        print(list(state_dict.keys())[:20])
+
 
 
         # Clean keys
