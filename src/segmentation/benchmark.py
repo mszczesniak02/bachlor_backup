@@ -37,12 +37,12 @@ YOLO8_PATH = "/content/yolo8_deepcrack.pt"
 
 # DATA PATHS
 TEST_IMG = "/content/datasets/multi/test_img/"
-TEST_LAB = "/content/datasets/multi/test_lab/"
+TEST_LAB = "/content/datasets/multi/testr_lab/"
 
 
 def calculate_metrics(y_true, y_pred, smooth=1e-6):
     """
-    Calculate IoU and Dice for numpy arrays (H, W) or (B, H, W)
+    Calculate IoU, Dice, Precision, Recall, Accuracy, Specificity
     """
     y_true_f = y_true.flatten()
     y_pred_f = y_pred.flatten()
@@ -50,10 +50,21 @@ def calculate_metrics(y_true, y_pred, smooth=1e-6):
     intersection = (y_true_f * y_pred_f).sum()
     union = y_true_f.sum() + y_pred_f.sum() - intersection
 
+    # Confusion Matrix components
+    TP = intersection
+    FP = y_pred_f.sum() - TP
+    FN = y_true_f.sum() - TP
+    TN = (1 - y_true_f).sum() - FP # Assuming 0/1 binary
+
     iou = (intersection + smooth) / (union + smooth)
     dice = (2. * intersection + smooth) / (y_true_f.sum() + y_pred_f.sum() + smooth)
 
-    return iou, dice
+    precision = (TP + smooth) / (TP + FP + smooth)
+    recall = (TP + smooth) / (TP + FN + smooth)
+    accuracy = (TP + TN + smooth) / (TP + TN + FP + FN + smooth)
+    specificity = (TN + smooth) / (TN + FP + smooth)
+
+    return iou, dice, precision, recall, accuracy, specificity
 
 class Benchmark:
     def __init__(self, device):
@@ -89,27 +100,15 @@ class Benchmark:
         preds_batch = []
 
         # Denormalize on GPU
-        # images_tensor: [B, 3, H, W]
-        # mean, std from dataloader: mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
-        # unnorm = img * std + mean
         mean = torch.tensor([0.485, 0.456, 0.406], device=self.device).view(1, 3, 1, 1)
         std = torch.tensor([0.229, 0.224, 0.225], device=self.device).view(1, 3, 1, 1)
 
         imgs_denorm = images_tensor * std + mean
-        # Clip to 0-1
         imgs_denorm = torch.clamp(imgs_denorm, 0, 1)
-        # Convert to uint8 [0-255] for YOLO? YOLO accepts float [0-1] usually or uint8.
-        # Ultralytics checks input. If float, assumes 0-1.
-
-        # Batch inference is supported by YOLO model.predict() passing list of arrays OR tensor?
-        # Ultralytics supports passing a Tensor [B, 3, H, W] directly!
-        # This keeps it on GPU.
 
         # Using 512 as requested
+        # YOLO verbose=False to reduce clutter
         results = model.predict(imgs_denorm, imgsz=512, verbose=False, conf=0.25)
-
-        # Results is a list of Results objects. Masks are on GPU if input was GPU?
-        # Usually masks.data is a tensor on device.
 
         batch_masks = []
 
@@ -122,17 +121,10 @@ class Benchmark:
 
                 # Resize if needed to match input [H, W]
                 if data.shape[1:] != (h, w):
-                    # Interpolate expects [B, C, H, W]
-                    # data is [N, H, W] -> unsqueeze(1) -> [N, 1, H, W]
                     data = F.interpolate(data.unsqueeze(1), size=(h, w), 
                                          mode='bilinear', align_corners=False).squeeze(1)
 
                 if return_probs or return_tensor:
-                    # Soft merge: Max probability? masks.data is usually binary-ish or confidence?
-                    # Ultralytics masks.data is usually binary masks actually (unless retina_masks=True?)
-                    # But let's assume it's float confidence if raw? No, standard is binary mask @ conf threshold.
-                    # If we want probs, we might not get raw mask logits easily without digging.
-                    # But assuming data is binary 0/1 float:
                     mask_pred = torch.max(data, dim=0)[0] # [H, W]
                 else:
                     mask_pred = torch.any(data > 0.5, dim=0).float()
@@ -157,7 +149,9 @@ class Benchmark:
         if model_type == 'torch':
             model.to(self.device).eval()
 
-        ious, dices = [], []
+        metrics = {
+            "iou": [], "dice": [], "precision": [], "recall": [], "accuracy": [], "specificity": []
+        }
         total_time, total_samples = 0, 0
         cpu_usages, ram_usages, gpu_usages = [], [], []
 
@@ -179,9 +173,13 @@ class Benchmark:
 
                 masks_np = masks.cpu().numpy().squeeze(1)
                 for i in range(preds.shape[0]):
-                    iou, dice = calculate_metrics(masks_np[i], preds[i])
-                    ious.append(iou)
-                    dices.append(dice)
+                    iou, dice, prec, rec, acc, spec = calculate_metrics(masks_np[i], preds[i])
+                    metrics["iou"].append(iou)
+                    metrics["dice"].append(dice)
+                    metrics["precision"].append(prec)
+                    metrics["recall"].append(rec)
+                    metrics["accuracy"].append(acc)
+                    metrics["specificity"].append(spec)
 
                 total_samples += images.size(0)
                 c, r, g = self.get_resource_usage()
@@ -191,8 +189,12 @@ class Benchmark:
 
         result = {
             "Model": model_name,
-            "IoU": np.mean(ious),
-            "Dice": np.mean(dices),
+            "IoU": np.mean(metrics["iou"]),
+            "Dice": np.mean(metrics["dice"]),
+            "Precision": np.mean(metrics["precision"]),
+            "Recall": np.mean(metrics["recall"]),
+            "Accuracy": np.mean(metrics["accuracy"]),
+            "Specificity": np.mean(metrics["specificity"]),
             "Avg Inference Time (ms/img)": (total_time / total_samples) * 1000,
             "Total Time (s)": total_time,
             "Avg CPU (%)": np.mean(cpu_usages),
@@ -223,7 +225,7 @@ class Benchmark:
         Parallel inference using ThreadPoolExecutor AND CUDA Streams.
         Averages on GPU.
         """
-        name = "Ensemble Parallel"
+        name = "Ensemble (Parallel)"
         print(f"\n--- Benchmarking {name} ---")
 
         streams = []
@@ -237,7 +239,9 @@ class Benchmark:
             if t == 'torch':
                 m.to(self.device).eval()
 
-        ious, dices = [], []
+        metrics = {
+            "iou": [], "dice": [], "precision": [], "recall": [], "accuracy": [], "specificity": []
+        }
         total_time, total_samples = 0, 0
 
         pbar = tqdm(dataloader, desc=f"Testing Ensemble Parallel")
@@ -280,9 +284,14 @@ class Benchmark:
                     masks_np = masks.cpu().numpy().squeeze(1)
 
                     for i in range(preds_np.shape[0]):
-                        iou, dice = calculate_metrics(masks_np[i], preds_np[i])
-                        ious.append(iou)
-                        dices.append(dice)
+                        iou, dice, prec, rec, acc, spec = calculate_metrics(masks_np[i], preds_np[i])
+                        metrics["iou"].append(iou)
+                        metrics["dice"].append(dice)
+                        metrics["precision"].append(prec)
+                        metrics["recall"].append(rec)
+                        metrics["accuracy"].append(acc)
+                        metrics["specificity"].append(spec)
+
                     total_samples += images.size(0)
 
         # Cleanup streams (optional)
@@ -290,8 +299,12 @@ class Benchmark:
 
         result = {
             "Model": name,
-            "IoU": np.mean(ious),
-            "Dice": np.mean(dices),
+            "IoU": np.mean(metrics["iou"]),
+            "Dice": np.mean(metrics["dice"]),
+            "Precision": np.mean(metrics["precision"]),
+            "Recall": np.mean(metrics["recall"]),
+            "Accuracy": np.mean(metrics["accuracy"]),
+            "Specificity": np.mean(metrics["specificity"]),
             "Avg Inference Time (ms/img)": (total_time / total_samples) * 1000,
             "Total Time (s)": total_time
         }
