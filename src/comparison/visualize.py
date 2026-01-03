@@ -1,4 +1,3 @@
-```python
 #autopep8:off
 
 import sys
