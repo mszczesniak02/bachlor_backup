@@ -268,7 +268,18 @@ def load_external_model(model_wrapper_class, weights_path, device, **kwargs):
             new_state_dict, strict=False)
         if hasattr(model, 'net'):
             # If wrapper, try loading into inner net
-            model.net.load_state_dict(new_state_dict, strict=False)
+            missing, unexpected = model.net.load_state_dict(new_state_dict, strict=False)
+            if missing:
+                print(f"[WARN] Partial load for {weights_path}. Missing {len(missing)} keys.")
+                print(f"Sample missing: {missing[:5]}")
+            else:
+                print(f"[SUCCESS] Fully loaded weights for {weights_path} into model.net")
+        else:
+            if missing:
+                print(f"[WARN] Partial load for {weights_path}. Missing {len(missing)} keys.")
+                print(f"Sample missing: {missing[:5]}")
+            else:
+                print(f"[SUCCESS] Fully loaded weights for {weights_path}")
 
         model.to(device)
         model.eval()
