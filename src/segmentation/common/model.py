@@ -35,7 +35,7 @@ def model_load(model_name: str, filepath=MODEL_INFERENCE_PATH, device=DEVICE, pr
 
     if os.path.isfile(filepath):
         checkpoint = torch.load(
-            filepath, map_location=device, weights_only=True)
+            filepath, map_location=device, weights_only=False)
         model.load_state_dict(checkpoint['model_state_dict'])
         model = model.to(device)
 

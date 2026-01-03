@@ -7,41 +7,49 @@ import os
 import torch
 import torch.nn as nn
 import numpy as np
+import warnings
+
+# Suppress the specific FutureWarning about weights_only from torch.load
+warnings.filterwarnings("ignore", category=FutureWarning, message=".*weights_only.*")
 
 # --- SETUP PATHS ---
 # Add the 'src' directory to sys.path to allow imports from segmentation, utils, etc.
 current_dir = os.path.dirname(os.path.abspath(__file__))
 src_dir = os.path.dirname(current_dir)
-sys.path.append(src_dir)
+if src_dir not in sys.path:
+    sys.path.append(src_dir)
+
+# Add DeepSegmentor to path for DeepCrack imports
+deep_segmentor_path = os.path.abspath(os.path.join(current_dir, "DeepSegmentor"))
+if deep_segmentor_path not in sys.path:
+    sys.path.append(deep_segmentor_path)
+
+# Add CrackFormer-II to path
+crackformer_path = os.path.abspath(os.path.join(current_dir, "CrackFormer-II", "CrackFormer-II"))
+if crackformer_path not in sys.path:
+    sys.path.append(crackformer_path)
 
 from segmentation.common.hparams import DEVICE
 from segmentation.common.dataloader import dataset_get, dataloader_get, val_transform
 from segmentation.common.model import model_load
 from segmentation.benchmark import Benchmark
 
-# Add DeepSegmentor to path for DeepCrack imports
-deep_segmentor_path = os.path.join(current_dir, "DeepSegmentor")
-sys.path.append(deep_segmentor_path)
-
-# Add CrackFormer-II to path
-crackformer_path = os.path.join(
-    current_dir, "CrackFormer-II", "CrackFormer-II")
-sys.path.append(crackformer_path)
-
 # Import DeepCrack directly from source
 try:
     from models.deepcrack_networks import DeepCrackNet
 except ImportError as e:
-    print(
-        f"[ERROR] Could not import DeepCrackNet. Ensure 'DeepSegmentor/models' is correct. {e}")
-    DeepCrackNet = None
+    print(f"[ERROR] Could not import DeepCrackNet. Ensure 'DeepSegmentor/models' is correct. Path: {deep_segmentor_path}. Error: {e}")
+    # Try alternate import if 'models' matches incorrectly
+    try:
+        from DeepSegmentor.models.deepcrack_networks import DeepCrackNet
+    except ImportError:
+        DeepCrackNet = None
 
 # Import CrackFormer directly from source
 try:
     from nets.crackformerII import crackformer
 except ImportError as e:
-    print(
-        f"[ERROR] Could not import crackformer. Ensure 'CrackFormer-II/nets' is correct and 'timm' is installed. {e}")
+    print(f"[ERROR] Could not import crackformer. Ensure 'CrackFormer-II/nets' is correct. Path: {crackformer_path}. Error: {e}")
     crackformer = None
 
 # =================================================================================================
@@ -131,7 +139,8 @@ def load_external_model(model_wrapper_class, weights_path, device, **kwargs):
         # 2. Checkpoint dict with 'model_state_dict' or similar
         # 3. Full model object (less likely for portable weights)
 
-        checkpoint = torch.load(weights_path, map_location=device, weights_only=True)
+        # Back to weights_only=False because of unsupported global numpy._core.multiarray.scalar
+        checkpoint = torch.load(weights_path, map_location=device, weights_only=False)
 
         state_dict = None
         if isinstance(checkpoint, dict):
