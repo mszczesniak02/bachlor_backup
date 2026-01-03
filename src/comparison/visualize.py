@@ -34,6 +34,16 @@ crackformer_path = os.path.abspath(os.path.join(current_dir, "CrackFormer-II", "
 if crackformer_path not in sys.path:
     sys.path.insert(0, crackformer_path)
 
+# Add CrackSegFormer to path
+crack_segformer_path = os.path.abspath(os.path.join(current_dir, "CrackSegFormer"))
+if crack_segformer_path not in sys.path:
+    sys.path.insert(0, crack_segformer_path)
+
+# Add CSBSR to path
+csbsr_path = os.path.abspath(os.path.join(current_dir, "CSBSR"))
+if csbsr_path not in sys.path:
+    sys.path.insert(0, csbsr_path)
+
 
 # Import DeepCrack
 try:
@@ -52,6 +62,27 @@ except ImportError:
     crackformer = None
     print("[ERROR] CrackFormer not found")
 
+# Import CrackSegFormer
+SegFormer = None
+try:
+    from models.segformer.segformer import SegFormer
+except ImportError:
+    if 'models' in sys.modules:
+        del sys.modules['models']
+    try:
+        from models.segformer.segformer import SegFormer
+    except ImportError:
+        print("[ERROR] CrackSegFormer not found")
+
+# Import CSBSR
+JointModel = None
+csbsr_cfg = None 
+try:
+    from model.modeling.build_model import JointModel
+    from model.config import cfg as csbsr_cfg
+except ImportError:
+    print("[ERROR] CSBSR not found")
+
 
 # --- CONFIGURATION (Match main.py) ---
 TEST_DATASET_IMG_PATH = "/content/test/test_img"
@@ -62,6 +93,8 @@ PATH_MY_SEGFORMER = "/content/m_segformer.pth"
 PATH_MY_YOLO = "/content/m_yolo.pt"
 PATH_DEEPCRACK_WEIGHTS = "/content/m_deepcrack.pth"
 PATH_CRACKFORMER_WEIGHTS = "/content/m_crackformer.pth"
+PATH_CRACKSEGFORMER_WEIGHTS = os.path.join(crack_segformer_path, "logs/20221028-073013-best_model.pth")
+PATH_CSBSR_WEIGHTS = "/content/m_csbsr.pth"
 
 
 # --- WRAPPERS ---
@@ -108,6 +141,69 @@ class CrackFormerWrapper(nn.Module):
         outputs = self.net(x_new)
         return outputs[-1] # output
 
+class CrackSegFormerWrapper(nn.Module):
+    def __init__(self, num_classes=2):
+        super().__init__()
+        if SegFormer is None:
+            raise ImportError("CrackSegFormer definition not found.")
+        self.net = SegFormer(num_classes=num_classes, phi='b0')
+
+    def forward(self, x):
+        # Renormalize: ImageNet -> Custom
+
+        # Denormalize ImageNet
+        mean_imgnet = torch.tensor([0.485, 0.456, 0.406], device=x.device).view(1, 3, 1, 1)
+        std_imgnet = torch.tensor([0.229, 0.224, 0.225], device=x.device).view(1, 3, 1, 1)
+        x_denorm = x * std_imgnet + mean_imgnet
+
+        # Normalize Custom
+        mean_custom = torch.tensor([0.473, 0.493, 0.504], device=x.device).view(1, 3, 1, 1)
+        std_custom = torch.tensor([0.100, 0.100, 0.099], device=x.device).view(1, 3, 1, 1)
+        x_new = (x_denorm - mean_custom) / std_custom
+
+        # Output: dict {'out': tensor}
+        out = self.net(x_new)['out']
+        prob = torch.softmax(out, dim=1)[:, 1, :, :].unsqueeze(1)
+        return prob
+
+class CSBSRWrapper(nn.Module):
+    def __init__(self):
+        super().__init__()
+        if JointModel is None or csbsr_cfg is None:
+            raise ImportError("CSBSR definition not found.")
+
+        # Configure CSBSR
+        self.cfg = csbsr_cfg.clone()
+        config_path = os.path.join(csbsr_path, "config/config_csbsr_pspnet.yaml")
+        if os.path.exists(config_path):
+            self.cfg.merge_from_file(config_path)
+        else:
+            print(f"[WARNING] CSBSR config not found at {config_path}")
+
+        self.cfg.freeze()
+        self.net = JointModel(self.cfg)
+        self.blur_ksize = self.cfg.BLUR.KERNEL_SIZE
+
+    def forward(self, x):
+        # Renormalize: ImageNet -> CSBSR Mean/Std
+
+        # Denormalize ImageNet
+        mean_imgnet = torch.tensor([0.485, 0.456, 0.406], device=x.device).view(1, 3, 1, 1)
+        std_imgnet = torch.tensor([0.229, 0.224, 0.225], device=x.device).view(1, 3, 1, 1)
+        x_denorm = x * std_imgnet + mean_imgnet
+
+        # Normalize CSBSR
+        mean_csbsr = torch.tensor([0.4741, 0.4937, 0.5048], device=x.device).view(1, 3, 1, 1)
+        std_csbsr = torch.tensor([0.1621, 0.1532, 0.1523], device=x.device).view(1, 3, 1, 1)
+        x_new = (x_denorm - mean_csbsr) / std_csbsr
+
+        # Create dummy kernel
+        B, C, H, W = x.shape
+        damy_kernel = torch.zeros((B, 1, self.blur_ksize, self.blur_ksize), device=x.device)
+
+        sr_preds, segment_preds, kernel_preds = self.net(x_new, damy_kernel)
+
+        return segment_preds
 
 # --- HELPER FUNCTIONS ---
 def load_external_model(model_wrapper_class, weights_path, device, **kwargs):
@@ -232,10 +328,14 @@ def main():
     if dc_model:
         models['DeepCrack'] = dc_model
 
-    cf_model = load_external_model(
-        CrackFormerWrapper, PATH_CRACKFORMER_WEIGHTS, device)
-    if cf_model:
-        models['CrackFormer'] = cf_model
+    cf_model = load_external_model(CrackFormerWrapper, PATH_CRACKFORMER_WEIGHTS, device)
+    if cf_model: models['CrackFormer'] = cf_model
+
+    csf_model = load_external_model(CrackSegFormerWrapper, PATH_CRACKSEGFORMER_WEIGHTS, device, num_classes=2)
+    if csf_model: models['CrackSegFormer'] = csf_model
+
+    csbsr_model = load_external_model(CSBSRWrapper, PATH_CSBSR_WEIGHTS, device)
+    if csbsr_model: models['CSBSR'] = csbsr_model
 
     print(f"Loaded models: {list(models.keys())}")
 
@@ -273,11 +373,10 @@ def main():
                 preds.get('DeepCrack', next(iter(preds.values()))))  # Fallback
 
         # Plotting
-        # Columns: Input, GT, UNet, SegFormer, YOLO8, DeepCrack, CrackFormer, Ensemble
-        plot_order = ['Input', 'Ground Truth', 'My-UNet', 'My-SegFormer',
-                      'My-YOLOv8', 'DeepCrack', 'CrackFormer', 'Ensemble']
+        # Columns: Input, GT, UNet, SegFormer, YOLO8, DeepCrack, CrackFormer, CrackSegFormer, CSBSR, Ensemble
+        plot_order = ['Input', 'Ground Truth', 'My-UNet', 'My-SegFormer', 'My-YOLOv8', 'DeepCrack', 'CrackFormer', 'CrackSegFormer', 'CSBSR', 'Ensemble']
 
-        fig, ax = plt.subplots(1, 8, figsize=(32, 4))
+        fig, ax = plt.subplots(1, 10, figsize=(40, 4))
 
         # Prepare content
         content = {}

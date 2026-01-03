@@ -29,6 +29,16 @@ crackformer_path = os.path.abspath(os.path.join(current_dir, "CrackFormer-II", "
 if crackformer_path not in sys.path:
     sys.path.insert(0, crackformer_path)
 
+# Add CrackSegFormer to path
+crack_segformer_path = os.path.abspath(os.path.join(current_dir, "CrackSegFormer"))
+if crack_segformer_path not in sys.path:
+    sys.path.insert(0, crack_segformer_path)
+
+# Add CSBSR to path
+csbsr_path = os.path.abspath(os.path.join(current_dir, "CSBSR"))
+if csbsr_path not in sys.path:
+    sys.path.insert(0, csbsr_path)
+
 from segmentation.common.hparams import DEVICE
 from segmentation.common.dataloader import dataset_get, dataloader_get, val_transform
 from segmentation.common.model import model_load
@@ -52,6 +62,28 @@ except ImportError as e:
     print(f"[ERROR] Could not import crackformer. Ensure 'CrackFormer-II/nets' is correct. Path: {crackformer_path}. Error: {e}")
     crackformer = None
 
+# Import CrackSegFormer
+SegFormer = None
+try:
+    from models.segformer.segformer import SegFormer
+except ImportError:
+    # Handle 'models' package collision with DeepSegmentor
+    if 'models' in sys.modules:
+        del sys.modules['models']
+    try:
+        from models.segformer.segformer import SegFormer
+    except ImportError as e:
+        print(f"[ERROR] CrackSegFormer not found: {e}")
+
+# Import CSBSR
+JointModel = None
+csbsr_cfg = None 
+try:
+    from model.modeling.build_model import JointModel
+    from model.config import cfg as csbsr_cfg
+except ImportError:
+    print("[ERROR] CSBSR not found")
+
 # =================================================================================================
 #                                     USER CONFIGURATION
 # =================================================================================================
@@ -74,6 +106,8 @@ PATH_MY_YOLO = "/content/m_yolo.pt"
 # Paths to the downloaded weights (.pth)
 PATH_DEEPCRACK_WEIGHTS = "/content/m_deepcrack.pth"
 PATH_CRACKFORMER_WEIGHTS = "/content/m_crackformer.pth"
+PATH_CRACKSEGFORMER_WEIGHTS = os.path.join(crack_segformer_path, "logs/20221028-073013-best_model.pth")
+PATH_CSBSR_WEIGHTS = "/content/m_csbsr.pth" # Placeholder for user provided weights
 
 
 # =================================================================================================
@@ -141,6 +175,78 @@ class CrackFormerWrapper(nn.Module):
         outputs = self.net(x_new)
         return outputs[-1]
 
+class CrackSegFormerWrapper(nn.Module):
+    def __init__(self, num_classes=2):
+        super().__init__()
+        if SegFormer is None:
+            raise ImportError("CrackSegFormer definition not found.")
+        self.net = SegFormer(num_classes=num_classes, phi='b0')
+
+    def forward(self, x):
+        # Renormalize: ImageNet -> Custom
+        # Custom: mean=[0.473, 0.493, 0.504], std=[0.100, 0.100, 0.099]
+
+        # Denormalize ImageNet
+        mean_imgnet = torch.tensor([0.485, 0.456, 0.406], device=x.device).view(1, 3, 1, 1)
+        std_imgnet = torch.tensor([0.229, 0.224, 0.225], device=x.device).view(1, 3, 1, 1)
+        x_denorm = x * std_imgnet + mean_imgnet
+
+        # Normalize Custom
+        mean_custom = torch.tensor([0.473, 0.493, 0.504], device=x.device).view(1, 3, 1, 1)
+        std_custom = torch.tensor([0.100, 0.100, 0.099], device=x.device).view(1, 3, 1, 1)
+        x_new = (x_denorm - mean_custom) / std_custom
+
+        # Output: dict {'out': tensor}
+        out = self.net(x_new)['out']
+        # out shape: [B, 2, H, W]
+        # We need single channel probability.
+        # Softmax then take class 1
+        prob = torch.softmax(out, dim=1)[:, 1, :, :].unsqueeze(1)
+        return prob
+
+class CSBSRWrapper(nn.Module):
+    def __init__(self):
+        super().__init__()
+        if JointModel is None or csbsr_cfg is None:
+            raise ImportError("CSBSR definition not found.")
+
+        # Configure CSBSR
+        self.cfg = csbsr_cfg.clone()
+        config_path = os.path.join(csbsr_path, "config/config_csbsr_pspnet.yaml")
+        if os.path.exists(config_path):
+            self.cfg.merge_from_file(config_path)
+        else:
+            print(f"[WARNING] CSBSR config not found at {config_path}")
+
+        self.cfg.freeze()
+        self.net = JointModel(self.cfg)
+        self.blur_ksize = self.cfg.BLUR.KERNEL_SIZE
+
+    def forward(self, x):
+        # Renormalize: ImageNet -> CSBSR Mean/Std
+        # CSBSR Defaults: Mean=[0.4741, 0.4937, 0.5048], Std=[0.1621, 0.1532, 0.1523]
+
+        # Denormalize ImageNet
+        mean_imgnet = torch.tensor([0.485, 0.456, 0.406], device=x.device).view(1, 3, 1, 1)
+        std_imgnet = torch.tensor([0.229, 0.224, 0.225], device=x.device).view(1, 3, 1, 1)
+        x_denorm = x * std_imgnet + mean_imgnet
+
+        # Normalize CSBSR
+        mean_csbsr = torch.tensor([0.4741, 0.4937, 0.5048], device=x.device).view(1, 3, 1, 1)
+        std_csbsr = torch.tensor([0.1621, 0.1532, 0.1523], device=x.device).view(1, 3, 1, 1)
+        x_new = (x_denorm - mean_csbsr) / std_csbsr
+
+        # Create dummy kernel
+        B, C, H, W = x.shape
+        # Assuming patch size logic in inference.py is for check, but model needs shape
+        # forward(self, x, damy_kernel, sr_targets=None)
+        # damy_kernel shape: [B, 1, K, K]
+        damy_kernel = torch.zeros((B, 1, self.blur_ksize, self.blur_ksize), device=x.device)
+
+        sr_preds, segment_preds, kernel_preds = self.net(x_new, damy_kernel)
+
+        return segment_preds
+
 # =================================================================================================
 #                                       MAIN SCRIPT
 # =================================================================================================
@@ -171,6 +277,8 @@ def load_external_model(model_wrapper_class, weights_path, device, **kwargs):
                 state_dict = checkpoint['state_dict']
             elif 'model_state_dict' in checkpoint:
                 state_dict = checkpoint['model_state_dict']
+            elif 'model' in checkpoint and isinstance(checkpoint['model'], dict): # For CrackSegFormer
+                state_dict = checkpoint['model']
             else:
                 # Assume the dict itself is the state dict if keys look like layer names
                 state_dict = checkpoint
