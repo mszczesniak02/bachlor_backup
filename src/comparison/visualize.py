@@ -202,7 +202,7 @@ class CSBSRWrapper(nn.Module):
         self.cfg.MODEL.SR_SCRATCH = True
         # Force U-Net16 configuration to match user weights
         self.cfg.MODEL.DETECTOR_TYPE = 'u-net16'
-        self.cfg.MODEL.UP_SAMPLE_METHOD = 'deconv'
+        self.cfg.MODEL.UP_SAMPLE_METHOD = 'interpolate' 
         self.cfg.freeze()
 
         self.net = JointModel(self.cfg)
