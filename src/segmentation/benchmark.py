@@ -346,6 +346,15 @@ class Benchmark:
                     predictions[n] = pred
 
                 # Ensemble Prediction
+                # Check for "My-" models to assume ensemble eligibility or just use all
+                # The prompt implies ensemble of "these three" (user models).
+                # But here we visualize whatever was passed in model_specs.
+                # If main.py passes ALL models, ensemble of ALL might be confusing if user only wants user-model ensemble.
+                # However, calculating ensemble on the fly for viz is tricky if specs vary.
+                # Let's calculate ensemble of ALL passed models for visualization to be consistent with "Ensemble" label,
+                # OR we could rely on main.py logic.
+                # For simplicity, let's visualize the ensemble of ALL models passed here.
+
                 probs_list = []
                 for n, t, m in model_specs:
                     if t == 'torch':
@@ -358,8 +367,13 @@ class Benchmark:
                 ens_pred = (ens_prob > 0.5).astype(np.float32)
                 predictions["Ensemble"] = ens_pred
 
-            # Plotting
-            fig, ax = plt.subplots(1, 6, figsize=(24, 4))
+            # Determine number of plots
+            # Input + GT + Models + Ensemble
+            num_plots = 2 + len(model_specs) + 1
+
+            # Dynamic figsize
+            fig, ax = plt.subplots(1, num_plots, figsize=(4 * num_plots, 4))
+            if num_plots == 1: ax = [ax]
 
             # Input
             ax[0].imshow(ten2np(img_tensor, denormalize=True))
@@ -372,22 +386,21 @@ class Benchmark:
             ax[1].axis('off')
 
             # Models
-            names_map = ["U-Net", "SegFormer", "YOLOv8", "Ensemble"]
-            # Map specs to simplistic names if needed, but here we can just iterate known order
-            # model_specs order: UNet, SegFormer, YOLOv8
-
-            # Mapping:
-            # predictions keys: "U-Net", "SegFormer", "YOLOv8" (from passed names)
-
-            for i, key in enumerate(names_map):
+            for i, (n, _, _) in enumerate(model_specs):
                 ax_idx = i + 2
-                if key in predictions:
-                    ax[ax_idx].imshow(predictions[key], cmap='gray', vmin=0, vmax=1)
-                    ax[ax_idx].set_title(key)
+                if n in predictions:
+                    ax[ax_idx].imshow(predictions[n], cmap='gray', vmin=0, vmax=1)
+                    ax[ax_idx].set_title(n)
                 else:
-                    ax[ax_idx].text(0.5, 0.5, "Not Loaded", ha='center', va='center', fontsize=12)
-                    ax[ax_idx].set_title(f"{key} (Missing)")
+                    ax[ax_idx].text(0.5, 0.5, "Error", ha='center', va='center')
+                    ax[ax_idx].set_title(f"{n} (Err)")
                 ax[ax_idx].axis('off')
+
+            # Ensemble
+            ax_idx = len(model_specs) + 2
+            ax[ax_idx].imshow(predictions["Ensemble"], cmap='gray', vmin=0, vmax=1)
+            ax[ax_idx].set_title("Ensemble (All)")
+            ax[ax_idx].axis('off')
 
             plt.tight_layout()
             out_name = f"benchmark_sample_{idx}.png"
