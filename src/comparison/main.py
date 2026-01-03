@@ -263,8 +263,14 @@ class CSBSRWrapper(nn.Module):
         self.cfg.MODEL.DETECTOR_TYPE = 'HRNet_OCR'
         self.cfg.freeze()
 
-        self.net = JointModel(self.cfg)
-        self.blur_ksize = self.cfg.BLUR.KERNEL_SIZE
+        # CSBSR uses relative paths - temporarily change working directory
+        old_cwd = os.getcwd()
+        os.chdir(csbsr_path)
+        try:
+            self.net = JointModel(self.cfg)
+            self.blur_ksize = self.cfg.BLUR.KERNEL_SIZE
+        finally:
+            os.chdir(old_cwd)
 
     def forward(self, x):
         # Renormalize: ImageNet -> CSBSR Mean/Std
