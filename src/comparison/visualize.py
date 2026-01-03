@@ -1,8 +1,5 @@
+#autopep8:off
 
-from segmentation.benchmark import ten2np
-from segmentation.common.model import model_load
-from segmentation.common.dataloader import dataset_get, val_transform
-from segmentation.common.hparams import DEVICE
 import sys
 import os
 import torch
@@ -22,7 +19,10 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 src_dir = os.path.dirname(current_dir)
 if src_dir not in sys.path:
     sys.path.append(src_dir)
-
+from segmentation.benchmark import ten2np
+from segmentation.common.model import model_load
+from segmentation.common.dataloader import dataset_get, val_transform
+from segmentation.common.hparams import DEVICE
 # Add DeepSegmentor to path for DeepCrack imports
 deep_segmentor_path = os.path.abspath(
     os.path.join(current_dir, "DeepSegmentor"))
