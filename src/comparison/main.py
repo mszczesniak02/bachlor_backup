@@ -19,31 +19,27 @@ src_dir = os.path.dirname(current_dir)
 if src_dir not in sys.path:
     sys.path.append(src_dir)
 
-# Add DeepSegmentor to path for DeepCrack imports
-deep_segmentor_path = os.path.abspath(os.path.join(current_dir, "DeepSegmentor"))
-if deep_segmentor_path not in sys.path:
-    sys.path.append(deep_segmentor_path)
+# Add DeepCrack to path
+deep_crack_path = os.path.abspath(os.path.join(current_dir, "DeepCrack", "codes"))
+if deep_crack_path not in sys.path:
+    sys.path.insert(0, deep_crack_path)
 
 # Add CrackFormer-II to path
 crackformer_path = os.path.abspath(os.path.join(current_dir, "CrackFormer-II", "CrackFormer-II"))
 if crackformer_path not in sys.path:
-    sys.path.append(crackformer_path)
+    sys.path.insert(0, crackformer_path)
 
 from segmentation.common.hparams import DEVICE
 from segmentation.common.dataloader import dataset_get, dataloader_get, val_transform
 from segmentation.common.model import model_load
 from segmentation.benchmark import Benchmark
 
-# Import DeepCrack directly from source
+# Import DeepCrack
 try:
-    from models.deepcrack_networks import DeepCrackNet
-except ImportError as e:
-    print(f"[ERROR] Could not import DeepCrackNet. Ensure 'DeepSegmentor/models' is correct. Path: {deep_segmentor_path}. Error: {e}")
-    # Try alternate import if 'models' matches incorrectly
-    try:
-        from DeepSegmentor.models.deepcrack_networks import DeepCrackNet
-    except ImportError:
-        DeepCrackNet = None
+    from model.deepcrack import DeepCrack
+except ImportError:
+    DeepCrack = None
+    print("[ERROR] DeepCrack not found in model.deepcrack")
 
 # Import CrackFormer directly from source
 try:
@@ -84,14 +80,13 @@ PATH_CRACKFORMER_WEIGHTS = "/content/m_crackformer.pth"
 class DeepCrackWrapper(nn.Module):
     """
     Wrapper for DeepCrackNet to match the simple forward(x) -> output interface
-    expected by the Benchmark class.
+    expected by the Benchmark class DeepCrackWrapper(nn.Module):
     """
-
-    def __init__(self, in_nc=3, num_classes=1, ngf=64, norm='batch'):
+    def __init__(self, num_classes=1):
         super().__init__()
-        if DeepCrackNet is None:
-            raise ImportError("DeepCrackNet definition not found.")
-        self.net = DeepCrackNet(in_nc, num_classes, ngf, norm)
+        if DeepCrack is None:
+            raise ImportError("DeepCrack definition not found.")
+        self.net = DeepCrack(num_classes)
 
     def forward(self, x):
         # Renormalize: ImageNet -> [0,1] -> [-1,1] (approx for 0.5 mean/std)
@@ -107,11 +102,10 @@ class DeepCrackWrapper(nn.Module):
         # (val - 0.5) / 0.5
         x_new = (x_denorm - 0.5) / 0.5
 
-        # DeepCrackNet returns tuple: (side1, side2, side3, side4, side5, fused)
-        # We only care about the fused output for benchmarking
+        # DeepCrack returns: output, fuse5, fuse4, fuse3, fuse2, fuse1
+        # We want 'output' which is the first element
         outputs = self.net(x_new)
-        fused = outputs[-1]
-        return fused
+        return outputs[0]
 
 
 class CrackFormerWrapper(nn.Module):
