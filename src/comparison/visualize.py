@@ -254,6 +254,10 @@ def load_external_model(model_wrapper_class, weights_path, device, **kwargs):
         else:
             state_dict = checkpoint
 
+        print(f"[DEBUG] Keys in {weights_path} (first 20):")
+        print(list(state_dict.keys())[:20])
+
+
         # Clean keys
         new_state_dict = {}
         for k, v in state_dict.items():
