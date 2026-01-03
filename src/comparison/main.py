@@ -91,27 +91,7 @@ with import_context(crackformer_path, []): # No conflicts expected but good prac
 SegFormer = None 
 
 
-# Import CSBSR (conflicts on 'model', 'config', 'utils')
-csbsr_path = os.path.abspath(os.path.join(current_dir, "CSBSR"))
-JointModel = None
-csbsr_cfg = None
 
-# Check for yacs dependency
-try:
-    import yacs
-except ImportError:
-    print("[WARNING] 'yacs' module not found. CSBSR requires 'yacs'. Install with: pip install yacs")
-
-with import_context(csbsr_path, ['model', 'config', 'utils']):
-    try:
-        # Suppress SyntaxWarning from CSBSR code
-        import warnings
-        warnings.filterwarnings("ignore", category=SyntaxWarning)
-
-        from model.modeling.build_model import JointModel
-        from model.config import cfg as csbsr_cfg
-    except ImportError as e:
-        print(f"[ERROR] CSBSR not found: {e}")
 
 
 
@@ -144,7 +124,7 @@ PATH_MY_YOLO = "/content/m_yolo.pt"
 PATH_DEEPCRACK_WEIGHTS = "/content/m_deepcrack.pth"
 PATH_CRACKFORMER_WEIGHTS = "/content/m_crackformer.pth"
 # PATH_CRACKSEGFORMER_WEIGHTS = os.path.join(crack_segformer_path, "pretrained_weights/segformer/mit_b0.pth")
-PATH_CSBSR_WEIGHTS = "/content/m_csbsr.pth" # Placeholder for user provided weights
+
 
 
 # =================================================================================================
@@ -241,71 +221,7 @@ class CrackSegFormerWrapper(nn.Module):
         prob = torch.softmax(out, dim=1)[:, 1, :, :].unsqueeze(1)
         return prob
 
-class CSBSRWrapper(nn.Module):
-    def __init__(self):
-        super().__init__()
-        if JointModel is None or csbsr_cfg is None:
-            raise ImportError("CSBSR definition not found.")
 
-        # Configure CSBSR
-        self.cfg = csbsr_cfg.clone()
-        config_path = os.path.join(csbsr_path, "config/config_csbsr_pspnet.yaml")
-        if os.path.exists(config_path):
-            self.cfg.merge_from_file(config_path)
-        else:
-            print(f"[WARNING] CSBSR config not found at {config_path}")
-
-        # Bypass loading missing pretrain weights
-        self.cfg.defrost()
-        self.cfg.MODEL.SR_SCRATCH = True
-        self.cfg.MODEL.SR_PRETRAIN_ITER = 0 # Avoid pretrain checks
-        # Use HRNet+OCR configuration to match user weights
-        self.cfg.MODEL.DETECTOR_TYPE = 'HRNet_OCR'
-        self.cfg.freeze()
-
-        # CSBSR uses relative paths - temporarily change working directory
-        old_cwd = os.getcwd()
-        os.chdir(csbsr_path)
-        try:
-            self.net = JointModel(self.cfg)
-            self.blur_ksize = self.cfg.BLUR.KERNEL_SIZE
-        finally:
-            os.chdir(old_cwd)
-
-    def forward(self, x):
-        # Renormalize: ImageNet -> CSBSR Mean/Std
-        # CSBSR Defaults: Mean=[0.4741, 0.4937, 0.5048], Std=[0.1621, 0.1532, 0.1523]
-
-        # Denormalize ImageNet
-        mean_imgnet = torch.tensor([0.485, 0.456, 0.406], device=x.device).view(1, 3, 1, 1)
-        std_imgnet = torch.tensor([0.229, 0.224, 0.225], device=x.device).view(1, 3, 1, 1)
-        x_denorm = x * std_imgnet + mean_imgnet
-
-        # Normalize CSBSR
-        mean_csbsr = torch.tensor([0.4741, 0.4937, 0.5048], device=x.device).view(1, 3, 1, 1)
-        std_csbsr = torch.tensor([0.1621, 0.1532, 0.1523], device=x.device).view(1, 3, 1, 1)
-        x_new = (x_denorm - mean_csbsr) / std_csbsr
-
-        # Store original dimensions for later
-        _, _, H, W = x.shape
-
-        # Resize to 224x224 for CSBSR (to avoid OOM and match config)
-        input_size = (224, 224)
-        x_resized = F.interpolate(x_new, size=input_size, mode='bilinear', align_corners=False)
-
-        # Create dummy kernel
-        B, C, H1, W1 = x_resized.shape
-        # Assuming patch size logic in inference.py is for check, but model needs shape
-        # forward(self, x, damy_kernel, sr_targets=None)
-        # damy_kernel shape: [B, 1, K, K]
-        damy_kernel = torch.zeros((B, 1, self.blur_ksize, self.blur_ksize), device=x.device)
-
-        sr_preds, segment_preds, kernel_preds = self.net(x_resized, damy_kernel)
-
-        # Resize back to original size
-        segment_preds = F.interpolate(segment_preds, size=(H, W), mode='bilinear', align_corners=False)
-
-        return segment_preds
 
 # =================================================================================================
 #                                       MAIN SCRIPT

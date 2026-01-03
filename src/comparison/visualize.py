@@ -111,7 +111,7 @@ PATH_MY_YOLO = "/content/m_yolo.pt"
 PATH_DEEPCRACK_WEIGHTS = "/content/m_deepcrack.pth"
 PATH_CRACKFORMER_WEIGHTS = "/content/m_crackformer.pth"
 # PATH_CRACKSEGFORMER_WEIGHTS = os.path.join(crack_segformer_path, "pretrained_weights/segformer/mit_b0.pth")
-PATH_CSBSR_WEIGHTS = "/content/m_csbsr.pth"
+
 
 
 # --- WRAPPERS ---
@@ -183,64 +183,7 @@ class CrackSegFormerWrapper(nn.Module):
         prob = torch.softmax(out, dim=1)[:, 1, :, :].unsqueeze(1)
         return prob
 
-class CSBSRWrapper(nn.Module):
-    def __init__(self):
-        super().__init__()
-        if JointModel is None or csbsr_cfg is None:
-            raise ImportError("CSBSR definition not found.")
 
-        # Configure CSBSR
-        self.cfg = csbsr_cfg.clone()
-        config_path = os.path.join(csbsr_path, "config/config_csbsr_pspnet.yaml")
-        if os.path.exists(config_path):
-            self.cfg.merge_from_file(config_path)
-        else:
-            print(f"[WARNING] CSBSR config not found at {config_path}")
-
-        # Bypass loading missing pretrain weights
-        self.cfg.defrost()
-        self.cfg.MODEL.SR_SCRATCH = True
-        # Use HRNet+OCR configuration to match user weights
-        self.cfg.MODEL.DETECTOR_TYPE = 'HRNet_OCR'
-        self.cfg.freeze()
-
-        # CSBSR uses relative paths - temporarily change working directory
-        old_cwd = os.getcwd()
-        os.chdir(csbsr_path)
-        try:
-            self.net = JointModel(self.cfg)
-            self.blur_ksize = self.cfg.BLUR.KERNEL_SIZE
-        finally:
-            os.chdir(old_cwd)
-
-    def forward(self, x):
-        # Renormalize: ImageNet -> CSBSR Mean/Std
-
-        # Denormalize ImageNet
-        mean_imgnet = torch.tensor([0.485, 0.456, 0.406], device=x.device).view(1, 3, 1, 1)
-        std_imgnet = torch.tensor([0.229, 0.224, 0.225], device=x.device).view(1, 3, 1, 1)
-        x_denorm = x * std_imgnet + mean_imgnet
-
-        # Normalize CSBSR
-        mean_csbsr = torch.tensor([0.4741, 0.4937, 0.5048], device=x.device).view(1, 3, 1, 1)
-        std_csbsr = torch.tensor([0.1621, 0.1532, 0.1523], device=x.device).view(1, 3, 1, 1)
-        x_new = (x_denorm - mean_csbsr) / std_csbsr
-
-        # Resize to 224x224 for CSBSR
-        input_size = (224, 224)
-        B, C, H, W = x.shape # Store original dimensions
-        x_resized = F.interpolate(x_new, size=input_size, mode='bilinear', align_corners=False)
-
-        # Create dummy kernel
-        _, _, H1, W1 = x_resized.shape # Use resized dimensions for kernel
-        damy_kernel = torch.zeros((B, 1, self.blur_ksize, self.blur_ksize), device=x.device)
-
-        sr_preds, segment_preds, kernel_preds = self.net(x_resized, damy_kernel)
-
-        # Resize back to original size
-        segment_preds = F.interpolate(segment_preds, size=(H, W), mode='bilinear', align_corners=False)
-
-        return segment_preds
 
 # --- HELPER FUNCTIONS ---
 def load_external_model(model_wrapper_class, weights_path, device, **kwargs):
@@ -262,12 +205,7 @@ def load_external_model(model_wrapper_class, weights_path, device, **kwargs):
         else:
             state_dict = checkpoint
 
-        # Debug: print decoder structure
-        print(f"[DEBUG] All keys containing 'center' or 'dec' in {weights_path}:")
-        dec_keys = [k for k in state_dict.keys() if 'center' in k or 'dec' in k]
-        for k in dec_keys:
-            print(f"  {k}")
-        print(f"[DEBUG] Total decoder keys: {len(dec_keys)}")
+
 
 
 
@@ -393,8 +331,7 @@ def main():
     # csf_model = load_external_model(CrackSegFormerWrapper, PATH_CRACKSEGFORMER_WEIGHTS, device, num_classes=2)
     # if csf_model: models['CrackSegFormer'] = csf_model
 
-    csbsr_model = load_external_model(CSBSRWrapper, PATH_CSBSR_WEIGHTS, device)
-    if csbsr_model: models['CSBSR'] = csbsr_model
+
 
     print(f"Loaded models: {list(models.keys())}")
 
@@ -433,15 +370,11 @@ def main():
 
         # Plotting
         # Columns: Input, GT, UNet, SegFormer, YOLO8, DeepCrack, CrackFormer, CSBSR, Ensemble
-        plot_order = ['Input', 'Ground Truth', 'My-UNet', 'My-SegFormer', 'My-YOLOv8', 'DeepCrack', 'CrackFormer', 'CSBSR', 'Ensemble']
+        # Plotting
+        # Columns: Input, GT, UNet, SegFormer, YOLO8, DeepCrack, CrackFormer, Ensemble
+        plot_order = ['Input', 'Ground Truth', 'My-UNet', 'My-SegFormer', 'My-YOLOv8', 'DeepCrack', 'CrackFormer', 'Ensemble']
 
-        fig, ax = plt.subplots(1, 9, figsize=(36, 4))
-
-        # Prepare content
-        content = {}
-        content['Input'] = ten2np(img_tensor, denormalize=True)
-        content['Ground Truth'] = ten2np(mask_tensor, denormalize=False)
-        content.update(preds)
+        fig, ax = plt.subplots(1, 8, figsize=(32, 4))
 
         for i, key in enumerate(plot_order):
             ax[i].axis('off')
