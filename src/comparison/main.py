@@ -50,22 +50,22 @@ except ImportError as e:
 
 # --- DATASET PATHS ---
 # Path to the test dataset (images and masks)
-TEST_DATASET_IMG_PATH = "/home/krzeslaav/Projects/datasets/dataset_segmentation/test_img"
-TEST_DATASET_MASK_PATH = "/home/krzeslaav/Projects/datasets/dataset_segmentation/test_lab"
+TEST_DATASET_IMG_PATH = "/content/test/test_img"
+TEST_DATASET_MASK_PATH = "/content/test/test_lab"
 
 # --- USER MODELS ---
 # Paths to your trained model weights
 # e.g., "models/segmentation/unet/best.pth"
-PATH_MY_UNET = "/home/krzeslaav/Projects/bachlor/model_tests/FULL_DATASET/model_unet_0.5960555357910763.pth"
+PATH_MY_UNET = "/content/m_unet.pth"
 # e.g., "models/segmentation/segformer/best.pth"
-PATH_MY_SEGFORMER = "/home/krzeslaav/Projects/bachlor/model_tests/FULL_DATASET/segformermodel_segformer_0.5864474233337809.pth"
+PATH_MY_SEGFORMER = "/content/m_segformer.pth"
 # e.g., "models/segmentation/yolo/best.pt"
-PATH_MY_YOLO = "/home/krzeslaav/Desktop/uuwe/yolo8_max/runs/segment/yolov8m_crack_seg/weights/best.pt"
+PATH_MY_YOLO = "/content/m_yolo.pt"
 
 # --- COMPARISON MODELS (DeepCrack & CrackFormer) ---
 # Paths to the downloaded weights (.pth)
-PATH_DEEPCRACK_WEIGHTS = "/home/krzeslaav/Documents/deepcrack/deepcrack/pretrained_net_G.pth"
-PATH_CRACKFORMER_WEIGHTS = "/home/krzeslaav/Documents/crackformer/crack315.pth"
+PATH_DEEPCRACK_WEIGHTS = "/content/m_deepcrack.pth"
+PATH_CRACKFORMER_WEIGHTS = "/content/m_crackformer.pth"
 
 
 # =================================================================================================
