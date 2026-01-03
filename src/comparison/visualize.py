@@ -1,14 +1,17 @@
+```python
 #autopep8:off
 
 import sys
 import os
 import torch
 import torch.nn as nn
+from torch.utils.data import DataLoader
 import numpy as np
 import warnings
 import cv2
 import matplotlib.pyplot as plt
 from ultralytics import YOLO
+import contextlib
 
 # Suppress warnings
 warnings.filterwarnings("ignore", category=FutureWarning,
@@ -23,65 +26,83 @@ from segmentation.benchmark import ten2np
 from segmentation.common.model import model_load
 from segmentation.common.dataloader import dataset_get, val_transform
 from segmentation.common.hparams import DEVICE
-# Add DeepSegmentor to path for DeepCrack imports
-deep_segmentor_path = os.path.abspath(
-    os.path.join(current_dir, "DeepSegmentor"))
-if deep_segmentor_path not in sys.path:
-    sys.path.insert(0, deep_segmentor_path)
+# --- Robust Import Context ---
+@contextlib.contextmanager
+def import_context(base_path, conflicting_modules=['model', 'models', 'config', 'utils']):
+    if base_path not in sys.path:
+        sys.path.insert(0, base_path)
 
-# Add CrackFormer-II to path
-crackformer_path = os.path.abspath(os.path.join(current_dir, "CrackFormer-II", "CrackFormer-II"))
-if crackformer_path not in sys.path:
-    sys.path.insert(0, crackformer_path)
+    for mod in conflicting_modules:
+        if mod in sys.modules:
+            del sys.modules[mod]
+        keys_to_remove = [k for k in sys.modules if k.startswith(mod + '.')]
+        for k in keys_to_remove:
+            del sys.modules[k]
 
-# Add CrackSegFormer to path
-crack_segformer_path = os.path.abspath(os.path.join(current_dir, "CrackSegFormer"))
-if crack_segformer_path not in sys.path:
-    sys.path.insert(0, crack_segformer_path)
-
-# Add CSBSR to path
-csbsr_path = os.path.abspath(os.path.join(current_dir, "CSBSR"))
-if csbsr_path not in sys.path:
-    sys.path.insert(0, csbsr_path)
-
+    try:
+        yield
+    except ImportError as e:
+        print(f"[ERROR] Import failed in context {base_path}: {e}")
+    except Exception as e:
+        print(f"[ERROR] Exception in context {base_path}: {e}")
 
 # Import DeepCrack
-try:
-    from models.deepcrack_networks import DeepCrackNet
-except ImportError:
+deep_crack_path = os.path.abspath(os.path.join(current_dir, "DeepCrack", "codes"))
+DeepCrack = None
+with import_context(deep_crack_path, ['model']):
     try:
-        from DeepSegmentor.models.deepcrack_networks import DeepCrackNet
-    except ImportError:
-        DeepCrackNet = None
-        print("[ERROR] DeepCrackNet not found")
+        from model.deepcrack import DeepCrack
+    except ImportError: pass
+
+# Import DeepSegmentor (DeepCrackNet)
+deep_segmentor_path = os.path.abspath(os.path.join(current_dir, "DeepSegmentor"))
+DeepCrackNet = None
+with import_context(deep_segmentor_path, ['models']):
+    try:
+        from models.deepcrack_networks import DeepCrackNet
+    except ImportError: pass
+
 
 # Import CrackFormer
-try:
-    from nets.crackformerII import crackformer
-except ImportError:
-    crackformer = None
-    print("[ERROR] CrackFormer not found")
+crackformer_path = os.path.abspath(os.path.join(current_dir, "CrackFormer-II", "CrackFormer-II"))
+crackformer = None
+with import_context(crackformer_path, []):
+    try:
+        from nets.crackformerII import crackformer
+    except ImportError:
+        print("[ERROR] CrackFormer not found")
+
 
 # Import CrackSegFormer
+crack_segformer_path = os.path.abspath(os.path.join(current_dir, "CrackSegFormer"))
 SegFormer = None
-try:
-    from models.segformer.segformer import SegFormer
-except ImportError:
-    if 'models' in sys.modules:
-        del sys.modules['models']
+with import_context(crack_segformer_path, ['models']):
     try:
         from models.segformer.segformer import SegFormer
     except ImportError:
         print("[ERROR] CrackSegFormer not found")
 
+
 # Import CSBSR
+csbsr_path = os.path.abspath(os.path.join(current_dir, "CSBSR"))
 JointModel = None
 csbsr_cfg = None
+
+# Check yacs
 try:
-    from model.modeling.build_model import JointModel
-    from model.config import cfg as csbsr_cfg
+    import yacs
 except ImportError:
-    print("[ERROR] CSBSR not found")
+    print("[WARNING] 'yacs' module not found. CSBSR requires 'yacs'.")
+
+with import_context(csbsr_path, ['model', 'config', 'utils']):
+    try:
+        import warnings
+        warnings.filterwarnings("ignore", category=SyntaxWarning)
+
+        from model.modeling.build_model import JointModel
+        from model.config import cfg as csbsr_cfg
+    except ImportError as e:
+        print(f"[ERROR] CSBSR not found: {e}")
 
 
 # --- CONFIGURATION (Match main.py) ---

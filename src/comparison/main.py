@@ -1,4 +1,4 @@
-
+```
 #autopep8:off
 from ultralytics import YOLO
 
@@ -8,6 +8,10 @@ import torch
 import torch.nn as nn
 import numpy as np
 import warnings
+from torch.utils.data import DataLoader
+import matplotlib.pyplot as plt
+import pandas as pd
+import contextlib
 
 # Suppress the specific FutureWarning about weights_only from torch.load
 warnings.filterwarnings("ignore", category=FutureWarning, message=".*weights_only.*")
@@ -19,65 +23,99 @@ src_dir = os.path.dirname(current_dir)
 if src_dir not in sys.path:
     sys.path.append(src_dir)
 
-# Add DeepSegmentor to path for DeepCrack imports
-deep_segmentor_path = os.path.abspath(os.path.join(current_dir, "DeepSegmentor"))
-if deep_segmentor_path not in sys.path:
-    sys.path.insert(0, deep_segmentor_path)
+# --- Robust Import Context ---
+@contextlib.contextmanager
+def import_context(base_path, conflicting_modules=['model', 'models', 'config', 'utils']):
+    """
+    Context manager to import modules from a specific path, handling name collisions.
+    """
+    if base_path not in sys.path:
+        sys.path.insert(0, base_path)
 
-# Add CrackFormer-II to path
-crackformer_path = os.path.abspath(os.path.join(current_dir, "CrackFormer-II", "CrackFormer-II"))
-if crackformer_path not in sys.path:
-    sys.path.insert(0, crackformer_path)
+    # Save original modules to restore? No, we need the new ones to persist for the objects.
+    # But we MUST clear the existing ones so the new import picks up the new files.
 
-# Add CrackSegFormer to path
-crack_segformer_path = os.path.abspath(os.path.join(current_dir, "CrackSegFormer"))
-if crack_segformer_path not in sys.path:
-    sys.path.insert(0, crack_segformer_path)
+    # Snapshot of what we are about to clear (for debugging/safety if needed, but here we just clear)
+    cached_conflicts = {} 
 
-# Add CSBSR to path
-csbsr_path = os.path.abspath(os.path.join(current_dir, "CSBSR"))
-if csbsr_path not in sys.path:
-    sys.path.insert(0, csbsr_path)
+    for mod in conflicting_modules:
+        # Clear main module and submodules
+        if mod in sys.modules:
+            del sys.modules[mod]
 
-# Import DeepCrack directly from source
-try:
-    from models.deepcrack_networks import DeepCrackNet
-except ImportError as e:
-    print(f"[ERROR] Could not import DeepCrackNet. Ensure 'DeepSegmentor/models' is correct. Path: {deep_segmentor_path}. Error: {e}")
-    # Try alternate import if 'models' matches incorrectly
+        keys_to_remove = [k for k in sys.modules if k.startswith(mod + '.')]
+        for k in keys_to_remove:
+            del sys.modules[k]
+
     try:
-        from DeepSegmentor.models.deepcrack_networks import DeepCrackNet
+        yield
+    except ImportError as e:
+        print(f"[ERROR] Import failed in context {base_path}: {e}")
+    except Exception as e:
+        print(f"[ERROR] Exception in context {base_path}: {e}")
+
+# Import DeepCrack (conflicts on 'model')
+deep_crack_path = os.path.abspath(os.path.join(current_dir, "DeepCrack", "codes"))
+DeepCrack = None
+with import_context(deep_crack_path, ['model']):
+    try:
+        from model.deepcrack import DeepCrack
     except ImportError:
-        DeepCrackNet = None
+        # Fallback to DeepSegmentor if DeepCrack/codes fails or user intended old one
+        pass
 
-# Import CrackFormer directly from source
-try:
-    from nets.crackformerII import crackformer
-except ImportError:
-    crackformer = None
-    print("[ERROR] CrackFormer not found in nets.crackformerII")
+# DeepSegmentor (Fallback or explicit if needed) - conflicts on 'models'
+deep_segmentor_path = os.path.abspath(os.path.join(current_dir, "DeepSegmentor"))
+DeepCrackNet = None
+with import_context(deep_segmentor_path, ['models']):
+    try:
+        from models.deepcrack_networks import DeepCrackNet
+    except ImportError:
+        pass
 
-# Import CrackSegFormer
+
+# Import CrackFormer (nets - safe)
+crackformer_path = os.path.abspath(os.path.join(current_dir, "CrackFormer-II", "CrackFormer-II"))
+crackformer = None
+with import_context(crackformer_path, []): # No conflicts expected but good practice to isolate
+    try:
+        from nets.crackformerII import crackformer
+    except ImportError:
+        print("[ERROR] CrackFormer not found")
+
+
+# Import CrackSegFormer (conflicts on 'models')
+crack_segformer_path = os.path.abspath(os.path.join(current_dir, "CrackSegFormer"))
 SegFormer = None
-try:
-    from models.segformer.segformer import SegFormer
-except ImportError:
-    # Handle 'models' package collision with DeepSegmentor
-    if 'models' in sys.modules:
-        del sys.modules['models']
+with import_context(crack_segformer_path, ['models']):
     try:
         from models.segformer.segformer import SegFormer
-    except ImportError as e:
-        print(f"[ERROR] CrackSegFormer not found: {e}")
+    except ImportError:
+        print("[ERROR] CrackSegFormer not found")
 
-# Import CSBSR
+
+# Import CSBSR (conflicts on 'model', 'config', 'utils')
+csbsr_path = os.path.abspath(os.path.join(current_dir, "CSBSR"))
 JointModel = None
-csbsr_cfg = None 
+csbsr_cfg = None
+
+# Check for yacs dependency
 try:
-    from model.modeling.build_model import JointModel
-    from model.config import cfg as csbsr_cfg
+    import yacs
 except ImportError:
-    print("[ERROR] CSBSR not found")
+    print("[WARNING] 'yacs' module not found. CSBSR requires 'yacs'. Install with: pip install yacs")
+
+with import_context(csbsr_path, ['model', 'config', 'utils']):
+    try:
+        # Suppress SyntaxWarning from CSBSR code
+        import warnings
+        warnings.filterwarnings("ignore", category=SyntaxWarning)
+
+        from model.modeling.build_model import JointModel
+        from model.config import cfg as csbsr_cfg
+    except ImportError as e:
+        print(f"[ERROR] CSBSR not found: {e}")
+
 
 
 from segmentation.common.hparams import DEVICE
