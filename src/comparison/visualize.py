@@ -78,8 +78,8 @@ SegFormer = None
 with import_context(crack_segformer_path, ['models']):
     try:
         from models.segformer.segformer import SegFormer
-    except ImportError:
-        print("[ERROR] CrackSegFormer not found")
+    except ImportError as e:
+        print(f"[ERROR] CrackSegFormer not found: {e}")
 
 
 # Import CSBSR
@@ -200,7 +200,11 @@ class CSBSRWrapper(nn.Module):
         else:
             print(f"[WARNING] CSBSR config not found at {config_path}")
 
+        # Bypass loading missing pretrain weights
+        self.cfg.defrost()
+        self.cfg.MODEL.SR_SCRATCH = True
         self.cfg.freeze()
+
         self.net = JointModel(self.cfg)
         self.blur_ksize = self.cfg.BLUR.KERNEL_SIZE
 
