@@ -143,7 +143,7 @@ PATH_MY_YOLO = "/content/m_yolo.pt"
 # Paths to the downloaded weights (.pth)
 PATH_DEEPCRACK_WEIGHTS = "/content/m_deepcrack.pth"
 PATH_CRACKFORMER_WEIGHTS = "/content/m_crackformer.pth"
-PATH_CRACKSEGFORMER_WEIGHTS = os.path.join(crack_segformer_path, "pretrained_weights/segformer/mit_b0.pth")
+# PATH_CRACKSEGFORMER_WEIGHTS = os.path.join(crack_segformer_path, "pretrained_weights/segformer/mit_b0.pth")
 PATH_CSBSR_WEIGHTS = "/content/m_csbsr.pth" # Placeholder for user provided weights
 
 
