@@ -257,6 +257,13 @@ def load_external_model(model_wrapper_class, weights_path, device, **kwargs):
         else:
             state_dict = checkpoint
 
+        # Debug: print decoder structure
+        print(f"[DEBUG] All keys containing 'center' or 'dec' in {weights_path}:")
+        dec_keys = [k for k in state_dict.keys() if 'center' in k or 'dec' in k]
+        for k in dec_keys:
+            print(f"  {k}")
+        print(f"[DEBUG] Total decoder keys: {len(dec_keys)}")
+
 
 
 
