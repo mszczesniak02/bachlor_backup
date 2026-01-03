@@ -73,14 +73,9 @@ with import_context(crackformer_path, []):
         print("[ERROR] CrackFormer not found")
 
 
-# Import CrackSegFormer
-crack_segformer_path = os.path.abspath(os.path.join(current_dir, "CrackSegFormer"))
+# Import CrackSegFormer (DISABLED)
 SegFormer = None
-with import_context(crack_segformer_path, ['models']):
-    try:
-        from models.segformer.segformer import SegFormer
-    except ImportError as e:
-        print(f"[ERROR] CrackSegFormer not found: {e}")
+# ... disabled imports ...
 
 
 # Import CSBSR
@@ -364,8 +359,8 @@ def main():
     cf_model = load_external_model(CrackFormerWrapper, PATH_CRACKFORMER_WEIGHTS, device)
     if cf_model: models['CrackFormer'] = cf_model
 
-    csf_model = load_external_model(CrackSegFormerWrapper, PATH_CRACKSEGFORMER_WEIGHTS, device, num_classes=2)
-    if csf_model: models['CrackSegFormer'] = csf_model
+    # csf_model = load_external_model(CrackSegFormerWrapper, PATH_CRACKSEGFORMER_WEIGHTS, device, num_classes=2)
+    # if csf_model: models['CrackSegFormer'] = csf_model
 
     csbsr_model = load_external_model(CSBSRWrapper, PATH_CSBSR_WEIGHTS, device)
     if csbsr_model: models['CSBSR'] = csbsr_model
@@ -406,10 +401,10 @@ def main():
                 preds.get('DeepCrack', next(iter(preds.values()))))  # Fallback
 
         # Plotting
-        # Columns: Input, GT, UNet, SegFormer, YOLO8, DeepCrack, CrackFormer, CrackSegFormer, CSBSR, Ensemble
-        plot_order = ['Input', 'Ground Truth', 'My-UNet', 'My-SegFormer', 'My-YOLOv8', 'DeepCrack', 'CrackFormer', 'CrackSegFormer', 'CSBSR', 'Ensemble']
+        # Columns: Input, GT, UNet, SegFormer, YOLO8, DeepCrack, CrackFormer, CSBSR, Ensemble
+        plot_order = ['Input', 'Ground Truth', 'My-UNet', 'My-SegFormer', 'My-YOLOv8', 'DeepCrack', 'CrackFormer', 'CSBSR', 'Ensemble']
 
-        fig, ax = plt.subplots(1, 10, figsize=(40, 4))
+        fig, ax = plt.subplots(1, 9, figsize=(36, 4))
 
         # Prepare content
         content = {}

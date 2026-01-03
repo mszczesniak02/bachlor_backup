@@ -85,14 +85,10 @@ with import_context(crackformer_path, []): # No conflicts expected but good prac
         print("[ERROR] CrackFormer not found")
 
 
-# Import CrackSegFormer (conflicts on 'models')
-crack_segformer_path = os.path.abspath(os.path.join(current_dir, "CrackSegFormer"))
-SegFormer = None
-with import_context(crack_segformer_path, ['models']):
-    try:
-        from models.segformer.segformer import SegFormer
-    except ImportError as e:
-        print(f"[ERROR] CrackSegFormer not found: {e}")
+# Import CrackSegFormer (DISABLED BY USER REQUEST)
+# crack_segformer_path = os.path.abspath(os.path.join(current_dir, "CrackSegFormer"))
+# ... (disabled import logic) ...
+SegFormer = None 
 
 
 # Import CSBSR (conflicts on 'model', 'config', 'utils')
@@ -400,14 +396,26 @@ def main():
             print(f"Error loading My-UNet: {e}")
 
     # SegFormer
-    if not "PLACEHOLDER" in PATH_MY_SEGFORMER and os.path.exists(PATH_MY_SEGFORMER):
-        try:
-            m = model_load(
-                "segformer", filepath=PATH_MY_SEGFORMER, device=device)
-            models_to_test.append(("My-SegFormer", "torch", m))
-            print("[OK] My-SegFormer loaded")
-        except Exception as e:
-            print(f"Error loading My-SegFormer: {e}")
+    # if not "PLACEHOLDER" in PATH_MY_SEGFORMER and os.path.exists(PATH_MY_SEGFORMER):
+    #     try:
+    #         m = model_load(
+    #             "segformer", filepath=PATH_MY_SEGFORMER, device=device)
+    #         models_to_test.append(("My-SegFormer", "torch", m))
+    #         print("[OK] My-SegFormer loaded")
+    #     except Exception as e:
+    #         print(f"Error loading My-SegFormer: {e}")
+
+    # CrackSegFormer
+    # try:
+    #     if os.path.exists(PATH_CRACKSEGFORMER_WEIGHTS) and SegFormer is not None:
+    #         # CrackSegFormer weights structure might be dict 'model' or direct
+    #         m = load_external_model(CrackSegFormerWrapper, PATH_CRACKSEGFORMER_WEIGHTS, device, num_classes=2)
+    #         if m:
+    #             models_to_test.append(("CrackSegFormer", "torch", m))
+    #             print("Loaded CrackSegFormer")
+    #     else:
+    #          print(f"FAILED TO LOAD CrackSegFormer: File not found at {PATH_CRACKSEGFORMER_WEIGHTS}")
+    # except Exception as e: print(f"Error loading CrackSegFormer: {e}")
 
     # YOLOv8
     if not "PLACEHOLDER" in PATH_MY_YOLO and os.path.exists(PATH_MY_YOLO):
