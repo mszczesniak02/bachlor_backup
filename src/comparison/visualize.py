@@ -12,6 +12,7 @@ import cv2
 import matplotlib.pyplot as plt
 from ultralytics import YOLO
 import contextlib
+import traceback
 
 # Suppress warnings
 warnings.filterwarnings("ignore", category=FutureWarning,
@@ -273,7 +274,8 @@ def load_external_model(model_wrapper_class, weights_path, device, **kwargs):
         model.eval()
         return model
     except Exception as e:
-        print(f"[ERROR] Loading {weights_path}: {e}")
+        print(f"[ERROR] Loading {weights_path}:")
+        traceback.print_exc()
         return None
 
 
