@@ -2,6 +2,8 @@
 # autopep8: off
 import sys
 import os
+import time
+import resource
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
@@ -9,6 +11,7 @@ from PIL import Image
 from tqdm.auto import tqdm
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 
 original_sys_path = sys.path.copy()
 # moving to "src/"
@@ -75,9 +78,9 @@ def visualize_prediction(image_path, predicted_class_idx, confidence, probabilit
     plt.show()
 
 
-def evaluate_dataset(model, dataloader, device, class_names):
+def evaluate_dataset(model, dataloader, device, class_names, save_cm=False, subset_name="val"):
     """
-    Evaluates on the entire dataset
+    Evaluates on the entire dataset and computes confusion matrix
     """
     model.eval()
     all_preds = []
@@ -85,7 +88,7 @@ def evaluate_dataset(model, dataloader, device, class_names):
     all_confidences = []
 
     with torch.no_grad():
-        for images, labels in tqdm(dataloader, desc='Evaluating'):
+        for images, labels in tqdm(dataloader, desc=f'Evaluating {subset_name} on {device}'):
             images, labels = images.to(device), labels.to(device)
             outputs = model(images)
             probabilities = torch.softmax(outputs, dim=1)
@@ -100,7 +103,7 @@ def evaluate_dataset(model, dataloader, device, class_names):
     avg_confidence = np.mean(all_confidences)
 
     print("\n" + "="*70)
-    print("EVALUATION RESULTS")
+    print(f"EVALUATION RESULTS ({subset_name.upper()} - {device})")
     print("="*70)
     print(f"Total samples: {len(all_labels)}")
     print(f"Accuracy: {accuracy*100:.2f}%")
@@ -115,46 +118,112 @@ def evaluate_dataset(model, dataloader, device, class_names):
 
     print("="*70)
 
+    # Confusion Matrix
+    cm = confusion_matrix(all_labels, all_preds)
+    print(f"\nConfusion Matrix ({device}):")
+    print(cm)
+
+    # Plot Confusion Matrix
+    disp = ConfusionMatrixDisplay(
+        confusion_matrix=cm, display_labels=class_names)
+    fig, ax = plt.subplots(figsize=(8, 8))
+    disp.plot(cmap=plt.cm.Blues, ax=ax)
+    plt.title(f'Confusion Matrix ({subset_name.upper()} - {device})')
+
+    if save_cm:
+        save_path = f"{subset_name}_confusion_matrix_{device}.png"
+        plt.savefig(save_path)
+        print(f"\nConfusion matrix plot saved to {save_path}")
+
+    plt.close(fig)  # Close plot to free memory
+
     return accuracy, all_preds, all_labels, all_confidences
+
+
+def measure_performance(device_name, model_path, val_loader, class_names):
+    print(f"\n{'#'*30}")
+    print(f"Testing on {device_name.upper()}")
+    print(f"{'#'*30}")
+
+    device = torch.device(device_name)
+
+    # Load model
+    print(f"Loading model to {device_name}...")
+    model = model_load(model_path, device)
+
+    # Reset memory stats
+    if device_name == 'cuda':
+        torch.cuda.reset_peak_memory_stats()
+        torch.cuda.empty_cache()
+
+    start_time = time.time()
+    # Baseline memory
+    if device_name == 'cuda':
+        mem_start = torch.cuda.memory_allocated()
+    else:
+        mem_start = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+
+    # Run evaluation
+    evaluate_dataset(model, val_loader, device, class_names,
+                     save_cm=True, subset_name="val")
+
+    end_time = time.time()
+
+    # Calculate metrics
+    elapsed_time = end_time - start_time
+
+    if device_name == 'cuda':
+        mem_peak = torch.cuda.max_memory_allocated()
+        mem_used = mem_peak  # Peak memory usage during the process
+        mem_unit = "MB"
+        mem_val = mem_used / 1024 / 1024
+    else:
+        # ru_maxrss is in kilobytes on Linux
+        mem_peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        mem_used = mem_peak
+        mem_unit = "MB"
+        mem_val = mem_used / 1024  # Convert KB to MB
+
+    print(f"\n{device_name.upper()} Performance:")
+    print(f"Time taken: {elapsed_time:.4f} seconds")
+    print(f"Peak Memory: {mem_val:.2f} {mem_unit}")
+
+    return elapsed_time, mem_val, mem_unit
 
 
 def main():
     class_names = ["no_crack", "crack"]
-    device = torch.device(DEVICE)
-
-    print("Loading model...")
-    # Assuming best_model.pth is the target
     model_path = f"{MODEL_DIR}/best_model.pth"
-    model = model_load(model_path, device)
-    print(f"Model loaded from: {model_path}")
-    print(f"Device: {device}")
 
-    # Use Test set for inference
-    test_loader = dataloader_get(
-        TEST_DIR, batch_size=ENTRY_BATCH_SIZE, is_training=False, num_workers=WORKERS)
+    # Evaluate on Validation set
+    print(f"\nLoading Validation set...")
+    # Using larger batch size implies more memory usage, keep consistent for benchmark
+    val_loader = dataloader_get(
+        VAL_DIR, batch_size=ENTRY_BATCH_SIZE, is_training=False, num_workers=WORKERS)
 
-    print(f"\nEvaluating on Test set...")
-    evaluate_dataset(model, test_loader, device, class_names)
+    results = {}
 
-    # Visualization on few random samples
-    print("\nShowing random sample predictions...")
-    # Raw dataset for path access
-    dataset = EntryDataset(TEST_DIR, transform=None)
-
-    if len(dataset) > 0:
-        indices = np.random.choice(
-            len(dataset), size=min(3, len(dataset)), replace=False)
-        for idx in indices:
-            img_path, label = dataset.samples[idx]
-            pred_class, conf, probs = predict_single(
-                model, img_path, device, class_names)
-
-            print(f"\nSample: {img_path}")
-            print(
-                f"True: {class_names[label]}, Predicted: {class_names[pred_class]}, Confidence: {conf*100:.2f}%")
-            # visualize_prediction(img_path, pred_class, conf, probs, class_names)
+    # Test CUDA if available
+    if torch.cuda.is_available():
+        time_cuda, mem_cuda, unit_cuda = measure_performance(
+            'cuda', model_path, val_loader, class_names)
+        results['cuda'] = (time_cuda, mem_cuda, unit_cuda)
     else:
-        print("No samples found in test directory.")
+        print("\nCUDA not available, skipping CUDA test.")
+
+    # Test CPU
+    time_cpu, mem_cpu, unit_cpu = measure_performance(
+        'cpu', model_path, val_loader, class_names)
+    results['cpu'] = (time_cpu, mem_cpu, unit_cpu)
+
+    # Summary
+    print(f"\n{'='*20} BENCHMARK SUMMARY {'='*20}")
+    print(f"{'Device':<10} | {'Time (s)':<15} | {'Memory':<15}")
+    print("-" * 46)
+
+    for device, (t, m, u) in results.items():
+        print(f"{device.upper():<10} | {t:<15.4f} | {m:.2f} {u}")
+    print("=" * 46)
 
 
 if __name__ == "__main__":

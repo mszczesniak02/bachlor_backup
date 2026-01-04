@@ -6,11 +6,10 @@ import numpy as np
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 from ultralytics import YOLO
+import time
+from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
 
 # --- CONFIGURATION ---
-# Using the same paths as in evaluate_segmentation_ensemble.py or hparams if possible.
-# But hardcoding known good paths from previous tools for reliability as requested.
-
 UNET_PATH = "/content/m_unet.pth"
 SEGFORMER_PATH = "/content/m_segformer.pth"
 YOLO8_PATH = "/content/m_yolo8.pth"
@@ -22,13 +21,13 @@ src_dir = os.path.dirname(os.path.dirname(current_dir))
 # Actually we are in src/segmentation, so we need to add 'src' to path to import segmentation.common
 if os.path.abspath(os.path.join(current_dir, '../')) not in sys.path:
     sys.path.append(os.path.abspath(os.path.join(current_dir, '../')))
+
 from segmentation.common.hparams import *  # To get validation paths
 from segmentation.common.dataloader import dataset_get, val_transform
 from segmentation.common.model import model_load
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 IMAGE_SIZE = 512
-
 
 def predict_torch(model, images):
     model.eval()
@@ -38,7 +37,6 @@ def predict_torch(model, images):
             outputs = outputs['out']
         probs = torch.sigmoid(outputs)
     return probs.cpu().numpy()  # [B, 1, H, W]
-
 
 def predict_yolo(model, images_tensor):
     # Denormalize
@@ -70,22 +68,53 @@ def predict_yolo(model, images_tensor):
         return torch.stack(batch_masks).unsqueeze(1).cpu().numpy()
     return np.zeros((images_tensor.shape[0], 1, h, w))
 
+def calculate_metrics(pred_mask, gt_mask):
+    """
+    Calculates metrics for a single image:
+    Accuracy, Precision, Recall, F1 (Dice), IoU
+    Note: Dice is equivalent to F1 score for binary segmentation.
+    """
+    pred_bin = (pred_mask > 0.5).astype(np.uint8).flatten()
+    gt_bin = (gt_mask > 0.5).astype(np.uint8).flatten()
 
-def calculate_miou(pred_mask, gt_mask):
-    pred_bin = (pred_mask > 0.5).astype(np.uint8)
-    gt_bin = (gt_mask > 0.5).astype(np.uint8)
+    # If both are empty, perfect match
+    if np.sum(gt_bin) == 0 and np.sum(pred_bin) == 0:
+        return {
+            "mIoU": 1.0,
+            "Dice": 1.0,
+            "F1": 1.0,
+            "Precision": 1.0,
+            "Recall": 1.0,
+            "Accuracy": 1.0
+        }
 
+    # If gt is empty but pred is not, IoU/Dice/F1/Precision = 0. Recall is undefined (handling as 1 or 0 -> usually 0 interest if no positive class).
+    # We will use sklearn to handle edge cases properly where possible (zero_division=0/1)
+
+    # Accuracy
+    acc = accuracy_score(gt_bin, pred_bin)
+
+    # Precision, Recall, F1
+    precision = precision_score(gt_bin, pred_bin, zero_division=0)
+    recall = recall_score(gt_bin, pred_bin, zero_division=0)
+    f1 = f1_score(gt_bin, pred_bin, zero_division=0)
+
+    # IoU
     intersection = np.sum(pred_bin & gt_bin)
     union = np.sum(pred_bin | gt_bin)
+    iou = intersection / union if union > 0 else 1.0 if np.sum(gt_bin) == 0 else 0.0
 
-    if union == 0:
-        return 1.0  # If both empty, it's a perfect match
-
-    return intersection / union
-
+    return {
+        "mIoU": iou,
+        "Dice": f1, # Dice Coefficient is F1 Score for binary classification
+        "F1": f1,
+        "Precision": precision,
+        "Recall": recall,
+        "Accuracy": acc
+    }
 
 def main():
-    print(f"Running mIoU calculation on {DEVICE}")
+    print(f"Running Metrics calculation on {DEVICE}")
 
     # 1. Load Models
     models = {}
@@ -117,10 +146,7 @@ def main():
         return
 
     # 2. Load Validation Dataset
-    # Using IMG_TEST_PATH and MASK_TEST_PATH from hparams which corresponds to 'test' dataset,
-    # but based on hparams naming it seems to be used for validation/testing.
-    # The user request asks for "validacyjny zestaw danych", usually that's the one we test on.
-    print(f"Loading validation dataset from:")
+    print(f"Loading validation dataset metrics from:")
     print(f"Images: {IMG_TEST_PATH}")
     print(f"Masks: {MASK_TEST_PATH}")
 
@@ -132,31 +158,65 @@ def main():
     print(f"Dataset size: {len(dataset)}")
 
     # 3. Evaluation Loop
-    ious = {name: [] for name in models.keys()}
+    # Store lists of metrics dictionaries
+    results = {name: [] for name in models.keys()}
+    results["Ensemble"] = []
 
     for images, masks in tqdm(dataloader, desc="Evaluating"):
         images = images.to(DEVICE)
         masks = masks.numpy()  # [B, 1, H, W]
 
+        batch_preds = {}
+
+        # Get predictions for all models
         for name, model in models.items():
             if name == "YOLOv8":
-                preds = predict_yolo(model, images)
+                preds = predict_yolo(model, images) # [B, 1, H, W]
             else:
-                preds = predict_torch(model, images)
+                preds = predict_torch(model, images) # [B, 1, H, W]
+            batch_preds[name] = preds
 
-            # Calculate IoU for each image in batch
-            for i in range(images.shape[0]):
-                iou = calculate_miou(preds[i, 0], masks[i, 0])
-                ious[name].append(iou)
+        # Calculate Ensemble Prediction (Soft Voting / Average Probability)
+        # Assuming equal weights for now as simpler start
+        start_key = list(batch_preds.keys())[0]
+        ensemble_pred = np.zeros_like(batch_preds[start_key])
 
-    # 4. Results
-    print("\n" + "="*30)
-    print("mIoU Results (Validation Set)")
-    print("="*30)
-    for name, iou_list in ious.items():
-        miou = np.mean(iou_list)
-        print(f"{name:10s}: {miou:.4f}")
-    print("="*30)
+        for name in batch_preds:
+            ensemble_pred += batch_preds[name]
+        ensemble_pred /= len(batch_preds)
+
+        # Calculate Metrics for each item in batch
+        for i in range(images.shape[0]):
+            gt = masks[i, 0]
+
+            # Individual Models
+            for name in models.keys():
+                metrics = calculate_metrics(batch_preds[name][i, 0], gt)
+                results[name].append(metrics)
+
+            # Ensemble
+            ens_metrics = calculate_metrics(ensemble_pred[i, 0], gt)
+            results["Ensemble"].append(ens_metrics)
+
+    # 4. Aggregate Results
+    final_metrics = {}
+    metric_keys = ["mIoU", "Dice", "F1", "Precision", "Recall", "Accuracy"]
+
+    for name, metrics_list in results.items():
+        aggregated = {}
+        for key in metric_keys:
+            values = [m[key] for m in metrics_list]
+            aggregated[key] = np.mean(values)
+        final_metrics[name] = aggregated
+
+    # 5. Print Table
+    print("\n" + "="*95)
+    print(f"{'Model':<15} | {'mIoU':<10} | {'Dice (F1)':<12} | {'Precision':<10} | {'Recall':<10} | {'Accuracy':<10}")
+    print("-" * 95)
+
+    for name, metrics in final_metrics.items():
+        print(f"{name:<15} | {metrics['mIoU']:.4f}     | {metrics['Dice']:.4f}       | {metrics['Precision']:.4f}     | {metrics['Recall']:.4f}     | {metrics['Accuracy']:.4f}")
+    print("="*95 + "\n")
 
 
 if __name__ == "__main__":
