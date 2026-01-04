@@ -12,7 +12,7 @@ from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_sc
 # --- CONFIGURATION ---
 UNET_PATH = "/content/m_unet.pth"
 SEGFORMER_PATH = "/content/m_segformer.pth"
-YOLO8_PATH = "/content/m_yolo8.pth"
+YOLO8_PATH = "/content/m_yolo8.pt"
 
 # Set up paths for imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
